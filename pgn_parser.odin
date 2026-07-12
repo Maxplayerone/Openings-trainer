@@ -383,7 +383,7 @@ parser_piece_symbol_to_piece_type :: proc(symbol: u8) -> PieceType{
 
 parser_parse :: proc(parser: ^Parser) -> bool{
     for tok := lexer_next_token(&parser.lexer); tok.type != .EOF; tok = lexer_next_token(&parser.lexer){
-        fmt.println("Currently parsing token:", tok)
+        //fmt.println("Currently parsing token:", tok)
 
         switch tok.type{
             case .Error:

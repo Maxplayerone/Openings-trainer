@@ -20,13 +20,17 @@ main :: proc(){
     target := rl.LoadRenderTexture(i32(game_size.x), i32(game_size.y))
     rl.SetTextureFilter(target.texture, .BILINEAR)
 
-    //game
+    //board
     board := board_create()
     moves, success := read_pgn("res/pgn/a1.pgn", board.pieces[:])
     if !success{
         assert(false)
     }
     board.moves = moves
+
+    //ui
+    browser := browser_create()
+
     for !rl.WindowShouldClose(){
 
         scale := min(f32(rl.GetScreenWidth()) / game_size.x, f32(rl.GetScreenHeight()) / game_size.y)
@@ -34,12 +38,13 @@ main :: proc(){
 
         dt := f64(rl.GetFrameTime())
 
-        board_update(&board, virtual_mouse, dt)
+        //board_update(&board, virtual_mouse, dt)
 
         rl.BeginTextureMode(target)
         rl.ClearBackground({74, 125, 208, 255})
         
-        board_render(&board, virtual_mouse) 
+        //board_render(&board, virtual_mouse) 
+        browser_render(browser)
 
         rl.EndTextureMode()
 
@@ -47,10 +52,16 @@ main :: proc(){
         free_all(context.temp_allocator)
     }
 
+    fmt.println(browser.pgns[:])
+
     rl.UnloadRenderTexture(target)
     rl.CloseWindow()
 
     delete(board.moves)
+    for name in browser.pgns{
+        delete(name.name)
+    }
+    delete(browser.pgns)
 
 	for key, value in tracking_allocator.allocation_map {
 		fmt.printf("%v: Leaked %v bytes\n", value.location, value.size)
