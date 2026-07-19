@@ -29,7 +29,10 @@ main :: proc(){
     board.moves = moves
 
     //ui
-    browser := browser_create()
+    browser, ok := browser_create()
+    if !ok{
+        assert(false)
+    }
 
     for !rl.WindowShouldClose(){
 
@@ -39,12 +42,13 @@ main :: proc(){
         dt := f64(rl.GetFrameTime())
 
         //board_update(&board, virtual_mouse, dt)
+        browser_update(&browser)
 
         rl.BeginTextureMode(target)
         rl.ClearBackground({74, 125, 208, 255})
         
         //board_render(&board, virtual_mouse) 
-        browser_render(browser)
+        browser_render(&browser)
 
         rl.EndTextureMode()
 
@@ -52,16 +56,24 @@ main :: proc(){
         free_all(context.temp_allocator)
     }
 
-    fmt.println(browser.pgns[:])
-
     rl.UnloadRenderTexture(target)
     rl.CloseWindow()
 
     delete(board.moves)
-    for name in browser.pgns{
-        delete(name.name)
+
+    for node in browser.nodes{
+        switch n in node{
+            case SingleNode:
+                delete(n.name)
+            case Directory:
+                delete(n.name)
+                for child in n.children{
+                    delete(child.name)
+                }
+                delete(n.children)
+        }
     }
-    delete(browser.pgns)
+    delete(browser.nodes)
 
 	for key, value in tracking_allocator.allocation_map {
 		fmt.printf("%v: Leaked %v bytes\n", value.location, value.size)

@@ -1,0 +1,5 @@
+- think about the implementation of selected_node_index. It would probably have to be a variable in Browser and should range from 0 to len(browser.nodes) - 1
+visible_nodes may need it's "own" selected_node_index which would mean the one of the nodes in the array has the is_selected flag true
+
+- moving selected node up and down throughout all the nodes we have in the nodes dynamic array
+- opening folders

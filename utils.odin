@@ -1,9 +1,6 @@
 package main
 
 import rl "vendor:raylib"
-import "core:os"
-import "core:fmt"
-import "core:strings"
 
 min :: proc(a, b: f32) -> f32{
     if a > b{

@@ -86,7 +86,7 @@ lexer_read_brackets :: proc(lexer: ^Lexer) -> Token{
 
 lexer_is_number :: proc(c: u8) -> bool{
     //theoretically c >= 49 because the first digit cannot be a 0 but I don't think it's a big deal 
-    return c >= 48 && c <= 57
+    return c >= '0' && c <= '9' 
 }
 
 lexer_read_number :: proc(lexer: ^Lexer) -> Token{
