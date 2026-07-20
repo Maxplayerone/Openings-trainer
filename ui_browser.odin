@@ -140,50 +140,32 @@ get_selected_node :: proc(visible_nodes: []VisibleNode) -> VisibleNode{
     return visible_nodes[get_selected_node_index(visible_nodes)]
 }
 
+//decrementing 'index' go through browser.nodes until you find Node.(Directory)
+get_closest_dir_index_up :: proc(browser: ^Browser, index: int) -> int{
+
+}
+
 shift_visible_nodes_up :: proc(browser: ^Browser){
-    if browser.global_selected_node_index <= 0{
+    if browser.global_selected_node_index == 0{
         return
     }
-
     browser.global_selected_node_index -= 1
 
-    opened_dir_index := -1
-    j := 0
-    i := 0
-    dir_child_offset := 0
-    for _ in 0..<MAX_VISIBLE_NODE_AMOUNT{
-        if opened_dir_index != -1{
-            dir, ok := browser.nodes[opened_dir_index].(Directory)
-            if !ok{
-                assert(false)
-            }
+    for i := MAX_VISIBLE_NODE_AMOUNT - 1; i > 0; i -= 1{
+        browser.visible_nodes[i] = browser.visible_nodes[i - 1]
+    }
+    browser.visible_nodes[1].is_selected = false
 
-            browser.visible_nodes[i + dir_child_offset].type = .DirectoryChild
-            browser.visible_nodes[i + dir_child_offset].name = dir.children[j].name
-            j += 1
-            if j >= len(dir.children){
-                opened_dir_index = -1
-                dir_child_offset += j
-                j = 0
-            }
-            continue
-        }
-
-        switch n in browser.nodes[browser.global_selected_node_index + i]{
-            case SingleNode:
-                browser.visible_nodes[i + dir_child_offset].type = .SingleNode 
-                browser.visible_nodes[i + dir_child_offset].name = n.name 
-            case Directory:
-                browser.visible_nodes[i + dir_child_offset].type = .Directory 
-                browser.visible_nodes[i + dir_child_offset].name = n.name 
-                if n.is_open{
-                    browser.visible_nodes[i + dir_child_offset].is_open = true
-                    opened_dir_index = browser.global_selected_node_index + i
-                }
-
-        }
-        browser.visible_nodes[i].number = browser.global_selected_node_index + i
-        i += 1
+    switch n in browser.nodes[browser.global_selected_node_index]{
+        case SingleNode:
+            browser.visible_nodes[0].name = n.name
+            browser.visible_nodes[0].number = browser.global_selected_node_index
+            browser.visible_nodes[0].type = .SingleNode
+        case Directory:
+            browser.visible_nodes[0].name = n.name
+            browser.visible_nodes[0].number = browser.global_selected_node_index
+            browser.visible_nodes[0].type = .Directory
+            browser.visible_nodes[0].is_open = n.is_open
     }
     browser.visible_nodes[0].is_selected = true
 }
@@ -192,47 +174,23 @@ shift_visible_nodes_down :: proc(browser: ^Browser){
     if browser.global_selected_node_index + 1 >= len(browser.nodes){
         return
     }
-
     browser.global_selected_node_index += 1
-    starting_index := browser.global_selected_node_index - MAX_VISIBLE_NODE_AMOUNT + 1
 
-    opened_dir_index := -1
-    j := 0
-    i := 0
-    dir_child_offset := 0
-    for _ in 0..<MAX_VISIBLE_NODE_AMOUNT{
-        if opened_dir_index != -1{
-            dir, ok := browser.nodes[opened_dir_index].(Directory)
-            if !ok{
-                assert(false)
-            }
+    for i in 0..<(MAX_VISIBLE_NODE_AMOUNT - 1){
+        browser.visible_nodes[i] = browser.visible_nodes[i + 1]
+    }
+    browser.visible_nodes[MAX_VISIBLE_NODE_AMOUNT - 2].is_selected = false
 
-            browser.visible_nodes[i + dir_child_offset].type = .DirectoryChild
-            browser.visible_nodes[i + dir_child_offset].name = dir.children[j].name
-            j += 1
-            if j >= len(dir.children){
-                opened_dir_index = -1
-                dir_child_offset += j
-                j = 0
-            }
-            continue
-        }
-
-        switch n in browser.nodes[starting_index + i]{
-            case SingleNode:
-                browser.visible_nodes[i + dir_child_offset].type = .SingleNode 
-                browser.visible_nodes[i + dir_child_offset].name = n.name 
-            case Directory:
-                browser.visible_nodes[i + dir_child_offset].type = .Directory 
-                browser.visible_nodes[i + dir_child_offset].name = n.name 
-                if n.is_open{
-                    browser.visible_nodes[i + dir_child_offset].is_open = true
-                    opened_dir_index = starting_index + i
-                }
-
-        }
-        browser.visible_nodes[i].number = starting_index + i
-        i += 1
+    switch n in browser.nodes[browser.global_selected_node_index]{
+        case SingleNode:
+            browser.visible_nodes[MAX_VISIBLE_NODE_AMOUNT - 1].name = n.name
+            browser.visible_nodes[MAX_VISIBLE_NODE_AMOUNT - 1].number = browser.global_selected_node_index
+            browser.visible_nodes[MAX_VISIBLE_NODE_AMOUNT - 1].type = .SingleNode
+        case Directory:
+            browser.visible_nodes[MAX_VISIBLE_NODE_AMOUNT - 1].name = n.name
+            browser.visible_nodes[MAX_VISIBLE_NODE_AMOUNT - 1].number = browser.global_selected_node_index
+            browser.visible_nodes[MAX_VISIBLE_NODE_AMOUNT - 1].type = .Directory
+            browser.visible_nodes[MAX_VISIBLE_NODE_AMOUNT - 1].is_open = n.is_open
     }
     browser.visible_nodes[MAX_VISIBLE_NODE_AMOUNT - 1].is_selected = true
 }
