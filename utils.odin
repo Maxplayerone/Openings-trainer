@@ -80,4 +80,3 @@ timer_reset :: proc(timer: ^Timer){
 timer_percentage_time_elapsed :: proc(timer: Timer) -> f64{
     return timer.cur_time / timer.max_time
 }
-

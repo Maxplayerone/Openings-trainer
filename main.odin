@@ -42,7 +42,7 @@ main :: proc(){
         dt := f64(rl.GetFrameTime())
 
         //board_update(&board, virtual_mouse, dt)
-        browser_update(&browser)
+        browser_update(&browser, dt)
 
         rl.BeginTextureMode(target)
         rl.ClearBackground({74, 125, 208, 255})

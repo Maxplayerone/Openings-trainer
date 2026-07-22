@@ -26,6 +26,7 @@ Browser :: struct{
     nodes: [dynamic]Node,
     visible_nodes_indicies: [MAX_VISIBLE_NODE_AMOUNT]int,
     pivot: int,
+    how_long_held_enter: Timer,
 }
 
 
@@ -95,6 +96,8 @@ browser_create :: proc() -> (Browser, bool){
 
     browser.nodes[0].is_selected = true
     refresh_visible_nodes(&browser)
+
+    browser.how_long_held_enter = timer_create(0.5)
     return browser, true
 }
 
@@ -111,10 +114,18 @@ get_selected_index_in_visible_nodes :: proc(browser: ^Browser) -> int{
 increment_selected_node :: proc(browser: ^Browser){
     idx := get_selected_index_in_visible_nodes(browser)
     if idx >= MAX_VISIBLE_NODE_AMOUNT - 1{
-        browser.pivot += 1
-        refresh_visible_nodes(browser)
-        browser.nodes[browser.visible_nodes_indicies[MAX_VISIBLE_NODE_AMOUNT - 2]].is_selected = false
-        browser.nodes[browser.visible_nodes_indicies[MAX_VISIBLE_NODE_AMOUNT - 1]].is_selected = true
+        children_in_closed_dirs := 0
+        for i in browser.pivot..<len(browser.nodes){
+            if browser.nodes[i].type == .DirectoryChild && !browser.nodes[i].is_open{
+                children_in_closed_dirs += 1
+            }
+        }
+        if browser.pivot + MAX_VISIBLE_NODE_AMOUNT + children_in_closed_dirs < len(browser.nodes){
+            browser.pivot += 1
+            refresh_visible_nodes(browser)
+            browser.nodes[browser.visible_nodes_indicies[MAX_VISIBLE_NODE_AMOUNT - 2]].is_selected = false
+            browser.nodes[browser.visible_nodes_indicies[MAX_VISIBLE_NODE_AMOUNT - 1]].is_selected = true
+        }
     }
     else{
         browser.nodes[browser.visible_nodes_indicies[idx]].is_selected = false
@@ -141,6 +152,7 @@ decrement_selected_node :: proc(browser: ^Browser){
 refresh_visible_nodes :: proc(browser: ^Browser){
     dir_children_offset := 0
 
+    //prepass to check if there is a DirectoryChild of a closed directory that we need to skip
     sel_idx := get_selected_index_in_visible_nodes(browser)
     for browser.nodes[browser.pivot].type == .DirectoryChild && !browser.nodes[browser.pivot].is_open{
         if sel_idx == MAX_VISIBLE_NODE_AMOUNT - 1{
@@ -154,8 +166,21 @@ refresh_visible_nodes :: proc(browser: ^Browser){
         }
     }
 
+
+    visible_node_indicies_cpy := browser.visible_nodes_indicies
     for i in 0..<MAX_VISIBLE_NODE_AMOUNT{
         index := i + dir_children_offset + browser.pivot
+
+        //happens when we want to close a directory near the end of the nodes 
+        //such that if we would close it there wouldn't be enough indicies from pivot to the end of nodes
+        //to fill up browser.visible_nodes. That's why we move pivot one spot earlier and try to generate
+        //visible_nodes again
+        if index >= len(browser.nodes){
+            browser.visible_nodes_indicies = visible_node_indicies_cpy
+            browser.pivot -= 1
+            refresh_visible_nodes(browser)
+            return
+        }
 
         browser.visible_nodes_indicies[i] = index        
         if browser.nodes[index].type == .Directory && !browser.nodes[index].is_open{
@@ -164,14 +189,34 @@ refresh_visible_nodes :: proc(browser: ^Browser){
     }
 }
 
-browser_update :: proc(browser: ^Browser){
+browser_update :: proc(browser: ^Browser, dt: f64){
+
     if rl.IsKeyPressed(.RIGHT){
         increment_selected_node(browser)
+
+        timer_reset(&browser.how_long_held_enter)
     }
     if rl.IsKeyPressed(.LEFT){
         decrement_selected_node(browser)
+
+        timer_reset(&browser.how_long_held_enter)
     }
 
+    if rl.IsKeyDown(.LEFT){
+        timer_update(&browser.how_long_held_enter, dt)
+
+        if timer_is_finised(browser.how_long_held_enter){
+            decrement_selected_node(browser)
+        }
+    }
+
+    if rl.IsKeyDown(.RIGHT){
+        timer_update(&browser.how_long_held_enter, dt)
+
+        if timer_is_finised(browser.how_long_held_enter){
+            increment_selected_node(browser)
+        }
+    }
 
     if rl.IsKeyPressed(.ENTER){
         sel_idx := get_selected_index_in_visible_nodes(browser)
@@ -184,6 +229,8 @@ browser_update :: proc(browser: ^Browser){
             }
             refresh_visible_nodes(browser)
         }
+
+        timer_reset(&browser.how_long_held_enter)
     }
 }
 
