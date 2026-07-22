@@ -6,42 +6,26 @@ import "core:fmt"
 
 import rl "vendor:raylib"
 
-SingleNode :: struct{
-    name: string,
-}
-
-Directory :: struct{
-    name: string,
-    is_open: bool,
-    children: [dynamic]SingleNode,
-}
-
-Node :: union{
-    SingleNode,
-    Directory,
-}
-
 NodeType :: enum{
+    SingleNode,
     Directory,
     DirectoryChild,
-    SingleNode,
 }
 
-VisibleNode :: struct{
+Node :: struct{
     name: string, 
     type: NodeType,
-
-    number: int,
-    is_open: bool, //only relevant for NodeType.Directory
     is_selected: bool,
+    is_open: bool,
+    children: [dynamic]Node,
 }
 
 MAX_VISIBLE_NODE_AMOUNT :: 12
 
 Browser :: struct{
     nodes: [dynamic]Node,
-    visible_nodes: [MAX_VISIBLE_NODE_AMOUNT]VisibleNode,
-    global_selected_node_index: int,
+    visible_nodes_indicies: [MAX_VISIBLE_NODE_AMOUNT]int,
+    pivot: int,
 }
 
 
@@ -86,10 +70,11 @@ browser_create :: proc() -> (Browser, bool){
                 return {}, false
             }
 
-            directory_node := Directory{
+            directory_node := Node{
                 name = name,
+                type = .Directory
             }
-            directory_node.children = make([dynamic]SingleNode, context.allocator)
+            directory_node.children = make([dynamic]Node, context.allocator)
 
             for directory_file_info in dir_infos_sorted{
                 child_name := strings.clone(directory_file_info.name)
@@ -98,202 +83,102 @@ browser_create :: proc() -> (Browser, bool){
                     return {}, false
                 }
                 else{
-                    append(&directory_node.children, SingleNode{child_name})
+                    append(&directory_node.children, Node{name = child_name, type = .DirectoryChild})
                 }
             }
             append(&browser.nodes, directory_node)
+
+            //we append only now so that children nodes are after the directory node
+            for child in directory_node.children{
+                append(&browser.nodes, child)
+            }
         }
         else{
-            append(&browser.nodes, SingleNode{name})
+            append(&browser.nodes, Node{name = name, type = .SingleNode})
         }
     }
 
-    //populating the visible_node array
-    length := len(browser.nodes) >= len(browser.visible_nodes) ? len(browser.visible_nodes) : len(browser.nodes)
-    for i in 0..<length{
-        switch n in browser.nodes[i]{
-            case SingleNode:
-                browser.visible_nodes[i].name = n.name
-                browser.visible_nodes[i].type = .SingleNode
-            case Directory:
-                browser.visible_nodes[i].name = n.name
-                browser.visible_nodes[i].type = .Directory
-        }
-        browser.visible_nodes[i].number = i
-    }
-
-    browser.visible_nodes[0].is_selected = true
+    refresh_visible_nodes(&browser)
+    browser.nodes[0].is_selected = true
     return browser, true
 }
 
-get_selected_node_index :: proc(visible_nodes: []VisibleNode) -> int{
-    for node, i in visible_nodes{
-        if node.is_selected{
+get_selected_index_in_visible_nodes :: proc(browser: ^Browser) -> int{
+    for index, i in browser.visible_nodes_indicies{
+        if browser.nodes[index].is_selected{
             return i
         }
     }
-    assert(false, "We have to have a selected node")
+    assert(false, "There should be at least one node that is selected")
     return -1
 }
 
-get_selected_node :: proc(visible_nodes: []VisibleNode) -> VisibleNode{
-    return visible_nodes[get_selected_node_index(visible_nodes)]
-}
-
-//decrementing 'index' go through browser.nodes until you find Node.(Directory)
-get_closest_dir_index_up :: proc(browser: ^Browser, index: int) -> int{
-
-}
-
-shift_visible_nodes_up :: proc(browser: ^Browser){
-    if browser.global_selected_node_index == 0{
-        return
-    }
-    browser.global_selected_node_index -= 1
-
-    for i := MAX_VISIBLE_NODE_AMOUNT - 1; i > 0; i -= 1{
-        browser.visible_nodes[i] = browser.visible_nodes[i - 1]
-    }
-    browser.visible_nodes[1].is_selected = false
-
-    switch n in browser.nodes[browser.global_selected_node_index]{
-        case SingleNode:
-            browser.visible_nodes[0].name = n.name
-            browser.visible_nodes[0].number = browser.global_selected_node_index
-            browser.visible_nodes[0].type = .SingleNode
-        case Directory:
-            browser.visible_nodes[0].name = n.name
-            browser.visible_nodes[0].number = browser.global_selected_node_index
-            browser.visible_nodes[0].type = .Directory
-            browser.visible_nodes[0].is_open = n.is_open
-    }
-    browser.visible_nodes[0].is_selected = true
-}
-
-shift_visible_nodes_down :: proc(browser: ^Browser){
-    if browser.global_selected_node_index + 1 >= len(browser.nodes){
-        return
-    }
-    browser.global_selected_node_index += 1
-
-    for i in 0..<(MAX_VISIBLE_NODE_AMOUNT - 1){
-        browser.visible_nodes[i] = browser.visible_nodes[i + 1]
-    }
-    browser.visible_nodes[MAX_VISIBLE_NODE_AMOUNT - 2].is_selected = false
-
-    switch n in browser.nodes[browser.global_selected_node_index]{
-        case SingleNode:
-            browser.visible_nodes[MAX_VISIBLE_NODE_AMOUNT - 1].name = n.name
-            browser.visible_nodes[MAX_VISIBLE_NODE_AMOUNT - 1].number = browser.global_selected_node_index
-            browser.visible_nodes[MAX_VISIBLE_NODE_AMOUNT - 1].type = .SingleNode
-        case Directory:
-            browser.visible_nodes[MAX_VISIBLE_NODE_AMOUNT - 1].name = n.name
-            browser.visible_nodes[MAX_VISIBLE_NODE_AMOUNT - 1].number = browser.global_selected_node_index
-            browser.visible_nodes[MAX_VISIBLE_NODE_AMOUNT - 1].type = .Directory
-            browser.visible_nodes[MAX_VISIBLE_NODE_AMOUNT - 1].is_open = n.is_open
-    }
-    browser.visible_nodes[MAX_VISIBLE_NODE_AMOUNT - 1].is_selected = true
-}
-
-increment_visible_selected_node :: proc(browser: ^Browser){
-    selected_index := get_selected_node_index(browser.visible_nodes[:])
-    if selected_index + 1 == MAX_VISIBLE_NODE_AMOUNT{ //we want to increment the selected index so we check if the next positions if out of bounds 
-        shift_visible_nodes_down(browser)
+increment_selected_node :: proc(browser: ^Browser){
+    idx := get_selected_index_in_visible_nodes(browser)
+    if idx >= MAX_VISIBLE_NODE_AMOUNT - 1{
+        browser.pivot += 1
+        refresh_visible_nodes(browser)
+        browser.nodes[browser.visible_nodes_indicies[MAX_VISIBLE_NODE_AMOUNT - 2]].is_selected = false
+        browser.nodes[browser.visible_nodes_indicies[MAX_VISIBLE_NODE_AMOUNT - 1]].is_selected = true
     }
     else{
-        browser.visible_nodes[selected_index].is_selected = false
-        browser.visible_nodes[selected_index + 1].is_selected = true
-        browser.global_selected_node_index += 1
+        browser.nodes[browser.visible_nodes_indicies[idx]].is_selected = false
+        browser.nodes[browser.visible_nodes_indicies[idx + 1]].is_selected = true
     }
 }
 
-decrement_visible_selected_node :: proc(browser: ^Browser){
-    selected_index := get_selected_node_index(browser.visible_nodes[:])
-    if selected_index == 0{
-        shift_visible_nodes_up(browser)
+decrement_selected_node :: proc(browser: ^Browser){
+    idx := get_selected_index_in_visible_nodes(browser)
+    if idx <= 0{
+        if browser.pivot > 0{
+            browser.pivot -= 1
+            refresh_visible_nodes(browser)
+            browser.nodes[browser.visible_nodes_indicies[0]].is_selected = true
+            browser.nodes[browser.visible_nodes_indicies[1]].is_selected = false
+        }
     }
     else{
-        browser.visible_nodes[selected_index].is_selected = false
-        browser.visible_nodes[selected_index - 1].is_selected = true
-        browser.global_selected_node_index -= 1
+        browser.nodes[browser.visible_nodes_indicies[idx]].is_selected = false
+        browser.nodes[browser.visible_nodes_indicies[idx - 1]].is_selected = true
     }
 }
 
-open_selected_directory :: proc(browser: ^Browser){
-    directory, ok := browser.nodes[browser.global_selected_node_index].(Directory)
-    if !ok{
-        assert(false)
-    }
+refresh_visible_nodes :: proc(browser: ^Browser){
+    dir_children_offset := 0
+    for i in 0..<MAX_VISIBLE_NODE_AMOUNT{
+        index := i + dir_children_offset + browser.pivot
 
-    dir_children := directory.children
-    first_dir_children_index := get_selected_node_index(browser.visible_nodes[:]) + 1
-    for i in 0..<len(dir_children){
-        if first_dir_children_index + i >= MAX_VISIBLE_NODE_AMOUNT{
-            break
+        for browser.nodes[index].type == .DirectoryChild && !browser.nodes[index].is_open{
+            fmt.println(browser.nodes[index])
+            index += 1
         }
 
-        browser.visible_nodes[first_dir_children_index + i].name = dir_children[i].name
-        browser.visible_nodes[first_dir_children_index + i].type = .DirectoryChild 
-    }
-    
-    first_single_node_index := first_dir_children_index + len(dir_children)
-    for i in first_single_node_index..<MAX_VISIBLE_NODE_AMOUNT{
-        switch n in browser.nodes[browser.global_selected_node_index + i - first_single_node_index + 1]{
-            case SingleNode:
-                browser.visible_nodes[i].name = n.name
-                browser.visible_nodes[i].type = .SingleNode 
-            case Directory:
-                browser.visible_nodes[i].name = n.name
-                browser.visible_nodes[i].type = .Directory 
-                browser.visible_nodes[i].is_open = n.is_open
+        browser.visible_nodes_indicies[i] = index        
+        if browser.nodes[index].type == .Directory && !browser.nodes[index].is_open{
+            dir_children_offset += len(browser.nodes[index].children)
         }
     }
-
-    directory.is_open = true
-    browser.nodes[browser.global_selected_node_index] = directory
-}
-
-close_selected_directory :: proc(browser: ^Browser){
-    selected_dir_index := get_selected_node_index(browser.visible_nodes[:])
-    for i in (selected_dir_index + 1)..<MAX_VISIBLE_NODE_AMOUNT{
-        node := browser.nodes[browser.global_selected_node_index + (i - selected_dir_index)]
-        switch n in node{
-            case SingleNode:
-                browser.visible_nodes[i].name = n.name
-                browser.visible_nodes[i].type = .SingleNode
-            case Directory:
-                browser.visible_nodes[i].name = n.name
-                browser.visible_nodes[i].type = .Directory
-        }
-    }
-
-    dir, ok := browser.nodes[browser.global_selected_node_index].(Directory)
-    if !ok{
-        assert(false)
-    }
-    dir.is_open = false
-    browser.nodes[browser.global_selected_node_index] = dir
 }
 
 browser_update :: proc(browser: ^Browser){
     if rl.IsKeyPressed(.RIGHT){
-        increment_visible_selected_node(browser)
+        increment_selected_node(browser)
     }
     if rl.IsKeyPressed(.LEFT){
-        decrement_visible_selected_node(browser)
+        decrement_selected_node(browser)
     }
 
+
     if rl.IsKeyPressed(.ENTER){
-        selected_node_index := get_selected_node_index(browser.visible_nodes[:])
-        selected_node := browser.visible_nodes[selected_node_index] 
-        if selected_node.is_selected && selected_node.type == .Directory{
-            if selected_node.is_open{
-                close_selected_directory(browser)
+        sel_idx := get_selected_index_in_visible_nodes(browser)
+        index_in_nodes := browser.visible_nodes_indicies[sel_idx]
+
+        if browser.nodes[index_in_nodes].type == .Directory{
+            browser.nodes[index_in_nodes].is_open = !browser.nodes[index_in_nodes].is_open
+            for i in 1..=len(browser.nodes[index_in_nodes].children){
+                browser.nodes[i + index_in_nodes].is_open = browser.nodes[index_in_nodes].is_open
             }
-            else{
-                open_selected_directory(browser)
-            }
-            browser.visible_nodes[selected_node_index].is_open = !browser.visible_nodes[selected_node_index].is_open
+            refresh_visible_nodes(browser)
         }
     }
 }
@@ -314,14 +199,15 @@ calculate_gap :: proc(single_nodes, selected_node, directory_nodes, directory_ch
 
 browser_render :: proc(browser: ^Browser){
     single_nodes, selected_node, directory_nodes, directory_child_nodes: int
-    for visible_node in browser.visible_nodes{
-        if visible_node.is_selected{
-            selected_node += 1 
+    for index in browser.visible_nodes_indicies{
+        if browser.nodes[index].is_selected{
+            selected_node += 1
             continue
         }
-        switch visible_node.type{
+
+        switch browser.nodes[index].type{
             case .Directory:
-                if visible_node.is_open{
+                if browser.nodes[index].is_open{
                     directory_nodes += 1
                 }
                 else{
@@ -335,23 +221,21 @@ browser_render :: proc(browser: ^Browser){
     }
 
     gap := calculate_gap(single_nodes, selected_node, directory_nodes, directory_child_nodes)
-    selected_node_index := get_selected_node_index(browser.visible_nodes[:])
 
     b := strings.builder_make()
     defer strings.builder_destroy(&b)
 
     next_y_pos := gap 
-    for node, i in browser.visible_nodes{
-        name := node.name
+    for index, i in browser.visible_nodes_indicies{
         pos: rl.Vector2
 
-        if node.is_selected{
+        if browser.nodes[index].is_selected{
             pos = rl.Vector2{game_size.x - SELECTED_NODE_SIZE.x, next_y_pos}
 
-            if node.type == .Directory && !node.is_open{
+            if browser.nodes[index].type == .Directory && !browser.nodes[index].is_open{
                 rl.DrawRectangleV(pos, SELECTED_NODE_SIZE, rl.ORANGE)
             }
-            else if node.type == .Directory && node.is_open{
+            else if browser.nodes[index].type == .Directory && browser.nodes[index].is_open{
                 rl.DrawRectangleV(pos, SELECTED_NODE_SIZE, rl.LIME)
             }
             else{
@@ -359,22 +243,23 @@ browser_render :: proc(browser: ^Browser){
             }
             next_y_pos += (gap + SELECTED_NODE_SIZE.y)
 
+
             strings.builder_reset(&b)
-            strings.write_int(&b, browser.visible_nodes[i].number)
+            strings.write_int(&b, index)
             strings.write_string(&b, ". ")
-            strings.write_string(&b, name)
-            rl.DrawText(strings.to_cstring(&b), i32(pos.x + 40), i32(pos.y + 40), 45, rl.BLACK)
+            strings.write_string(&b, browser.nodes[index].name)
+            rl.DrawText(strings.to_cstring(&b), i32(pos.x + 40), i32(pos.y + 20), 45, rl.BLACK)
 
             continue
         }
 
-        switch node.type{
+        switch browser.nodes[index].type{
             case .SingleNode:
                 pos = rl.Vector2{game_size.x - SINGLE_NODE_SIZE.x, next_y_pos}
                 rl.DrawRectangleV(pos, SINGLE_NODE_SIZE, rl.BLACK)
                 next_y_pos += (gap + SINGLE_NODE_SIZE.y)
             case .Directory:
-                if node.is_open{
+                if browser.nodes[index].is_open{
                     pos = rl.Vector2{game_size.x - DIRECTORY_NODE_SIZE.x, next_y_pos}
                     rl.DrawRectangleV(pos, DIRECTORY_NODE_SIZE, rl.LIME)
                     next_y_pos += (gap + DIRECTORY_NODE_SIZE.y)
@@ -389,11 +274,10 @@ browser_render :: proc(browser: ^Browser){
                 rl.DrawRectangleV(pos, DIRECTORY_CHILD_NODE_SIZE, rl.RED)
                 next_y_pos += (gap + DIRECTORY_CHILD_NODE_SIZE.y)
         }
-
         strings.builder_reset(&b)
-        strings.write_int(&b, browser.visible_nodes[i].number)
+        strings.write_int(&b, index)
         strings.write_string(&b, ". ")
-        strings.write_string(&b, name)
+        strings.write_string(&b, browser.nodes[index].name)
         rl.DrawText(strings.to_cstring(&b), i32(pos.x + 40), i32(pos.y + 20), 45, rl.WHITE)
     }
 }

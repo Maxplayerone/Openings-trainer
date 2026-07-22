@@ -62,16 +62,8 @@ main :: proc(){
     delete(board.moves)
 
     for node in browser.nodes{
-        switch n in node{
-            case SingleNode:
-                delete(n.name)
-            case Directory:
-                delete(n.name)
-                for child in n.children{
-                    delete(child.name)
-                }
-                delete(n.children)
-        }
+        delete(node.name)
+        delete(node.children)
     }
     delete(browser.nodes)
 

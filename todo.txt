@@ -1,1 +1,8 @@
-- work on shift visible_node_down function - moving down makes previously opened directories closed 
+- zrób bounds checks na pivot w takim sposób żeby nie wywalało programu jak ostatnim node'em jest SingleNode/DirectoryChild otwarte directory i 
+też Directory gdy Directory jest zamknięte
+
+- jak refreshujesz visible_nodes i natrafisz na DirectoryChild to sprawdź czy parent tego directory child jest otwarty i jak nie jest to 
+inaczej musisz visible_nodes_zrenderować (to jest tylko problem gdy nodes[visible_nodes[0]].type == .DirectoryChild), 
+bo jeżeli jakiś child jest później to powinniśmy przed nim zobaczyć jego directory i na podstawie tego wiedzieć czy powinno się DirectoryChild renderować czy nie
+
+- zrób funkcjonalność przechodzenia do góry poza border visible_nodes 
