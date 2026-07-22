@@ -63,7 +63,6 @@ main :: proc(){
 
     for node in browser.nodes{
         delete(node.name)
-        delete(node.children)
     }
     delete(browser.nodes)
 

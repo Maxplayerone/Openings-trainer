@@ -17,7 +17,7 @@ Node :: struct{
     type: NodeType,
     is_selected: bool,
     is_open: bool,
-    children: [dynamic]Node,
+    child_count: int,
 }
 
 MAX_VISIBLE_NODE_AMOUNT :: 12
@@ -70,27 +70,22 @@ browser_create :: proc() -> (Browser, bool){
                 return {}, false
             }
 
-            directory_node := Node{
-                name = name,
-                type = .Directory
-            }
-            directory_node.children = make([dynamic]Node, context.allocator)
+            append(&browser.nodes, Node{name = name, type = .Directory})
+            dir_index := len(browser.nodes) - 1
 
             for directory_file_info in dir_infos_sorted{
                 child_name := strings.clone(directory_file_info.name)
+
                 if directory_file_info.type == .Directory{
                     fmt.println("[browser_create] cannot have a directory inside a directory")
                     return {}, false
                 }
-                else{
-                    append(&directory_node.children, Node{name = child_name, type = .DirectoryChild})
-                }
-            }
-            append(&browser.nodes, directory_node)
 
-            //we append only now so that children nodes are after the directory node
-            for child in directory_node.children{
-                append(&browser.nodes, child)
+                browser.nodes[dir_index].child_count += 1
+                append(&browser.nodes, Node{name = child_name, type = .DirectoryChild})
+            }
+            for i in (dir_index + 1)..<len(browser.nodes){
+                browser.nodes[i].child_count = browser.nodes[dir_index].child_count
             }
         }
         else{
@@ -98,8 +93,8 @@ browser_create :: proc() -> (Browser, bool){
         }
     }
 
-    refresh_visible_nodes(&browser)
     browser.nodes[0].is_selected = true
+    refresh_visible_nodes(&browser)
     return browser, true
 }
 
@@ -145,17 +140,26 @@ decrement_selected_node :: proc(browser: ^Browser){
 
 refresh_visible_nodes :: proc(browser: ^Browser){
     dir_children_offset := 0
+
+    sel_idx := get_selected_index_in_visible_nodes(browser)
+    for browser.nodes[browser.pivot].type == .DirectoryChild && !browser.nodes[browser.pivot].is_open{
+        if sel_idx == MAX_VISIBLE_NODE_AMOUNT - 1{
+            browser.pivot += 1
+        }
+        else if sel_idx == 0{
+            browser.pivot -= 1
+        }
+        else{
+            assert(false, "I want to check if you can get into this branch. I think not but idk")
+        }
+    }
+
     for i in 0..<MAX_VISIBLE_NODE_AMOUNT{
         index := i + dir_children_offset + browser.pivot
 
-        for browser.nodes[index].type == .DirectoryChild && !browser.nodes[index].is_open{
-            fmt.println(browser.nodes[index])
-            index += 1
-        }
-
         browser.visible_nodes_indicies[i] = index        
         if browser.nodes[index].type == .Directory && !browser.nodes[index].is_open{
-            dir_children_offset += len(browser.nodes[index].children)
+            dir_children_offset += browser.nodes[index].child_count
         }
     }
 }
@@ -175,7 +179,7 @@ browser_update :: proc(browser: ^Browser){
 
         if browser.nodes[index_in_nodes].type == .Directory{
             browser.nodes[index_in_nodes].is_open = !browser.nodes[index_in_nodes].is_open
-            for i in 1..=len(browser.nodes[index_in_nodes].children){
+            for i in 1..=browser.nodes[index_in_nodes].child_count{
                 browser.nodes[i + index_in_nodes].is_open = browser.nodes[index_in_nodes].is_open
             }
             refresh_visible_nodes(browser)
