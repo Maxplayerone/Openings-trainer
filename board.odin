@@ -87,7 +87,7 @@ board_create :: proc(filename := "res/fen/default.fen") -> Board{
     return board
 }
 
-board_update :: proc(board: ^Board, mouse: rl.Vector2, dt: f64){
+board_update :: proc(board: ^Board, mouse: rl.Vector2, dt: f64) -> bool{
     //keyboard movement
     if !board.finished_pgn && rl.IsKeyDown(.RIGHT) && board.moves_cursor < len(board.moves) && timer_is_finised(board.move_forward_timer){
         move := board.moves[board.moves_cursor]
@@ -147,6 +147,18 @@ board_update :: proc(board: ^Board, mouse: rl.Vector2, dt: f64){
     if board.moves_cursor >= len(board.moves){
         board.finished_pgn = true
     }
+
+    if board.finished_pgn && rl.IsKeyPressed(.ENTER){
+
+        board.finished_pgn = false
+        board.mistakes_count = 0
+        board.moves_cursor = 0
+        read_fen("res/fen/default.fen", &board.pieces)
+
+        return true
+    }
+
+    return false
 }
 
 board_render :: proc(board: ^Board, mouse: rl.Vector2){
@@ -207,6 +219,8 @@ board_render :: proc(board: ^Board, mouse: rl.Vector2){
         strings.write_string(&b, "Amount of mistakes: ")
         strings.write_int(&b, board.mistakes_count)
         rl.DrawText(strings.clone_to_cstring(strings.to_string(b), context.temp_allocator), i32(game_size.x / 3 * 1.1), i32(game_size.y / 10 * 4), 45, rl.WHITE)
+
+        rl.DrawText("[press enter to go to menu]", i32(game_size.x / 3 * 1.13), i32(game_size.y * 0.5), 30, rl.WHITE)
     }
 }
 

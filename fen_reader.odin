@@ -6,6 +6,10 @@ import "core:strings"
 import rl "vendor:raylib"
 
 read_fen :: proc(filename: string, pieces: ^[64]Piece) -> bool{
+    for &piece in pieces{
+        piece = piece_none()
+    }
+
     file_contents_u8, err := os.read_entire_file_from_path(filename, context.temp_allocator)
     if err != nil{
         fmt.println("Error opening the file", filename, ":", err)

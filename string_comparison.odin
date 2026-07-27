@@ -39,7 +39,7 @@ compare_strings :: proc(a, b: string) -> ComparisonResult{
 //return value is the index at which the number starts
 //return -1 if there is not any postfix number
 read_string_postfix_number :: proc(s: string) -> int{
-    if !lexer_is_number(s[len(s) - 1]){
+    if len(s) == 0 || !lexer_is_number(s[len(s) - 1]){
         return -1
     }
 
@@ -48,20 +48,6 @@ read_string_postfix_number :: proc(s: string) -> int{
         index -= 1
     }
     return index + 1
-}
-
-remove_extension_from_string :: proc(s: string) -> string{
-    index := len(s) - 1
-    for s[index] != '.'{
-
-        //the string doesn't have an extension
-        if index == 0{
-            return s
-        }
-
-        index -= 1
-    }
-    return s[:index] 
 }
 
 //if both strings are the same and end in number 

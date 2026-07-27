@@ -1,6 +1,8 @@
 package main
 
 import rl "vendor:raylib"
+import "core:fmt"
+import "core:math/rand"
 
 min :: proc(a, b: f32) -> f32{
     if a > b{
@@ -29,6 +31,15 @@ to_rect :: proc(pos: rl.Vector2, size: f32) -> rl.Rectangle{
     return rl.Rectangle{pos.x, pos.y, size, size}
 }
 
+//return the position the text should be in so it is centered in the given rect
+center_text_in_rect :: proc(text: cstring, rect: rl.Rectangle, text_size: i32) -> [2]i32{
+    text_size := rl.Vector2{
+        f32(rl.MeasureText(text, text_size)), 
+        f32(text_size), //this feels wrong and problematic. But rl.GetFontDefault().baseSize is also not correct and this seems like close enough 
+    }
+    return {i32(rect.x + (rect.width - text_size.x) / 2), i32(rect.y + (rect.height - text_size.y) / 2)}
+}
+
 get_virtual_mouse :: proc(game_size: [2]f32, scale: f32) -> rl.Vector2{
     mouse := rl.GetMousePosition()
     virtual_mouse := rl.Vector2{0.0, 0.0}
@@ -50,6 +61,21 @@ render_framebuffer :: proc(target: rl.RenderTexture2D, game_size: [2]f32, scale:
     )
     rl.EndDrawing()
 }
+
+remove_extension_from_string :: proc(s: string) -> string{
+    index := len(s) - 1
+    for s[index] != '.'{
+
+        //the string doesn't have an extension
+        if index == 0{
+            return s
+        }
+
+        index -= 1
+    }
+    return s[:index] 
+}
+
 
 Timer :: struct{
     max_time: f64,
@@ -79,4 +105,96 @@ timer_reset :: proc(timer: ^Timer){
 
 timer_percentage_time_elapsed :: proc(timer: Timer) -> f64{
     return timer.cur_time / timer.max_time
+}
+
+FrameTimer :: struct{
+    cur_frame: int,
+    max_frame: int,
+}
+
+frame_timer_create :: proc(max_frame: int) -> FrameTimer{
+    return FrameTimer{cur_frame = 0, max_frame = max_frame}
+}
+
+frame_timer_update :: proc(frame_timer: ^FrameTimer){
+    frame_timer.cur_frame += 1
+}
+
+frame_timer_is_finished :: proc(timer: FrameTimer) -> bool{
+    return timer.cur_frame >= timer.max_frame
+}
+
+frame_timer_reset :: proc(timer: ^FrameTimer){
+    timer.cur_frame = 0
+}
+
+get_color :: proc(index: int, alpha := 255) -> rl.Color{
+    index := index % 16
+    switch index{
+        case 0:
+            color := rl.YELLOW
+            color.a = u8(alpha)
+            return color
+        case 1:
+            color := rl.GOLD
+            color.a = u8(alpha)
+            return color
+        case 2:
+            color := rl.ORANGE
+            color.a = u8(alpha)
+            return color
+        case 3:
+            color := rl.PINK
+            color.a = u8(alpha)
+            return color
+        case 4:
+            color := rl.RED
+            color.a = u8(alpha)
+            return color
+        case 5:
+            color := rl.MAROON
+            color.a = u8(alpha)
+            return color
+        case 6:
+            color := rl.GREEN
+            color.a = u8(alpha)
+            return color
+        case 7:
+            color := rl.LIME
+            color.a = u8(alpha)
+            return color
+        case 8:
+            color := rl.DARKGREEN
+            color.a = u8(alpha)
+            return color
+        case 9:
+            color := rl.SKYBLUE
+            color.a = u8(alpha)
+            return color
+        case 10:
+            color := rl.BLUE
+            color.a = u8(alpha)
+            return color
+        case 11:
+            color := rl.DARKBLUE
+            color.a = u8(alpha)
+            return color
+        case 12:
+            color := rl.PURPLE
+            color.a = u8(alpha)
+            return color
+        case 13:
+            color := rl.VIOLET
+            color.a = u8(alpha)
+            return color
+        case 14:
+            color := rl.DARKPURPLE
+            color.a = u8(alpha)
+            return color
+        case 15:
+            color := rl.BEIGE
+            color.a = u8(alpha)
+            return color
+    }
+    return rl.Color{rl.BROWN.r, rl.BROWN.g, rl.BROWN.b, u8(alpha)}
 }
