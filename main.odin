@@ -3,6 +3,7 @@ package main
 import "core:fmt"
 import "core:mem"
 import "core:strings"
+import "core:os"
 import rl "vendor:raylib"
 
 game_size := [2]f32{2000, 1500}
@@ -12,7 +13,7 @@ GameState :: enum{
     Board,
 }
 
-game_state: GameState = .Browser
+game_state: GameState = .Board
 
 main :: proc(){
     //setup
@@ -36,6 +37,15 @@ main :: proc(){
     if !ok{
         assert(false)
     }
+
+    buf, err := os.read_entire_file_from_path("vienna_easier.pgn", context.temp_allocator)
+    browser.pgn_creation_window.textbox_string_raw = string(buf) 
+    write_nested_pgn(&browser)
+    moves, ok2 := read_pgn("vienna1.pgn", board.pieces[:])
+    if !ok2{
+        fmt.println("not ok")
+    }
+    board.moves = moves
 
     for !rl.WindowShouldClose(){
 

@@ -4,6 +4,7 @@ import "core:os"
 import "core:strings"
 import "core:fmt"
 import "base:runtime"
+import vmem "core:mem/virtual"
 
 import rl "vendor:raylib"
 
@@ -211,7 +212,13 @@ browser_update :: proc(browser: ^Browser, virtual_mouse: rl.Vector2, dt: f64) ->
         if rl.IsMouseButtonPressed(.LEFT) && collission_mouse_rect(browser.pgn_creation_window.create_rect, virtual_mouse) || 
           rl.IsKeyPressed(.ENTER) && !browser.pgn_creation_window.filename_box_is_focused{
 
-            write_pgn(browser)
+            if check_if_nested_pgn(browser){
+                write_nested_pgn(browser)
+            }
+            else{
+                write_pgn(browser)
+            }
+
             strings.builder_reset(&browser.pgn_creation_window.filename_builder)
             for str in browser.pgn_creation_window.splitted_strings{
                 delete(str)
@@ -600,6 +607,132 @@ split_textbox_string :: proc(str: string, browser: Browser) -> [dynamic]cstring{
         append(&splitted_strings, strings.clone_to_cstring(str))
     }
     return splitted_strings
+}
+
+check_if_nested_pgn :: proc(browser: ^Browser) -> bool{
+    in_header := false
+    for char in browser.pgn_creation_window.textbox_string_raw{
+        if char == '(' && !in_header{
+            return true
+        }
+        else if char == '['{
+            in_header = true
+        }
+        else if char == ']'{
+            in_header = false
+        }
+    }
+    return false 
+}
+
+write_nested_pgn :: proc(browser: ^Browser){
+    //check if every bracket opening has a closing
+    opened_brackets := 0
+    closed_brackets := 0
+    in_header := false
+    last_square_bracket_idx := 0
+    str := browser.pgn_creation_window.textbox_string_raw
+    for char, i in str{
+        if char == '['{
+            in_header = true
+        }
+        else if char == ']'{
+            in_header = false
+            last_square_bracket_idx = i + 1
+        }
+        else if char == '(' && !in_header{
+            opened_brackets += 1
+        }
+        else if char == ')' && !in_header{
+            closed_brackets += 1
+        }
+    }
+    assert(opened_brackets == closed_brackets, "The amount of opened brackets do not match the amount of closed brackets")
+
+    b := strings.builder_make(context.temp_allocator)
+    defer strings.builder_destroy(&b)
+    strings.write_string(&b, str[:last_square_bracket_idx])
+    
+    //writing the root level pgn (aka ignoring any brackets)
+    {
+        opened_brackets = 0
+        for c in str[last_square_bracket_idx:]{
+            if c == '('{
+                opened_brackets += 1
+            }
+            else if c == ')'{
+                opened_brackets -= 1
+                continue
+            }
+
+            if opened_brackets > 0{
+                continue
+            }
+            strings.write_rune(&b, c)
+        }
+        err := os.write_entire_file_from_string("vienna1.pgn", strings.to_string(b))
+        assert(err == nil)
+    }
+
+
+    brackets_for_each_lvl := [?]int{1}
+    names := [?]string{"vienna2.pgn", "vienna3.pgn", "vienna4.pgn", "vienna5.pgn", "vienna6.pgn", "vienna7.pgn"}
+    name_idx := 0
+
+    for i in brackets_for_each_lvl{ //dla każdej głębokości 1, 2, 3...
+        desired_depth_lvl := i + 1 // +1 because we start counting at 0
+
+        for desired_bracket_count in 1..=brackets_for_each_lvl[i - 1]{ //dla liczby par otwartych i zamkniętych nawiasów w danej głębokości
+            k := last_square_bracket_idx
+            ignore := false
+            opened_brackets_at_desired_lvl := 0 
+            cur_depth_lvl := 0 
+
+            for _ in str[last_square_bracket_idx:]{
+                if k >= len(str){
+                    break
+                }
+
+                if str[k] == '('{
+                    cur_depth_lvl += 1
+
+                    if cur_depth_lvl == desired_depth_lvl{
+                        opened_brackets_at_desired_lvl += 1
+                    }
+
+                    if opened_brackets_at_desired_lvl != desired_bracket_count || cur_depth_lvl > desired_depth_lvl{
+                        ignore = true
+                    }
+                    else{
+                        k += 1
+                        strings.write_string(&b, str[k:k+2])
+                        k += 4
+                    }
+
+                }
+                else if str[k] == ')'{
+                    cur_depth_lvl -= 1
+                    if opened_brackets_at_desired_lvl == desired_bracket_count && cur_depth_lvl == desired_depth_lvl{
+                        k += 1
+                        ignore = false
+                    }
+                }
+
+
+                if ignore{
+                    k += 1
+                    continue
+                }
+                strings.write_rune(&b, rune(str[k]))
+                k += 1
+            }
+            err := os.write_entire_file_from_string(names[name_idx], strings.to_string(b))
+            name_idx += 1
+            assert(err == nil)
+            strings.builder_reset(&b)
+            strings.write_string(&b, str[:last_square_bracket_idx])
+        }
+    }
 }
 
 write_pgn :: proc(browser: ^Browser) -> bool{
