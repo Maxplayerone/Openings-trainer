@@ -1,11 +1,1 @@
-[Event "?"]
-[Site "?"]
-[Date "????.??.??"]
-[Round "?"]
-[White "?"]
-[Black "?"]
-[Result "*"]
-[Link "https://www.chess.com/analysis/game/pgn/5QDaktYvXg/analysis"]
-
-1. e4 e5 2. Nf3 Nc6 3. Bc4 Bc5  4. O-O Nf6 5. d3 O-O 5... a5 6. b3 Ra6
-7. c3 Rb6
+1. e4 e5 2. Nc3 Nf6  3. f4 d5 3... exf4 4. e5 Ng8 5. Nf3 d6 6. d4 dxe5 7. Qe2 Bb4 8. Qxe5+ Qe7 9. Bxf4

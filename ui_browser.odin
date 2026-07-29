@@ -677,9 +677,9 @@ write_nested_pgn :: proc(browser: ^Browser){
     }
 
 
-    names := [?]string{"vienna2.pgn", "vienna3.pgn", "vienna4.pgn"}
+    names := [?]string{"vienna2.pgn", "vienna3.pgn", "vienna4.pgn", "vienna5.pgn", "vienna6.pgn", "vienna7.pgn"}
     names_idx := 0
-    desired_bracket_count_max := 3
+    desired_bracket_count_max := 6
     desired_depth_lvl := 1
 
     for desired_bracket_count in 1..=desired_bracket_count_max{
