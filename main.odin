@@ -38,7 +38,7 @@ main :: proc(){
         assert(false)
     }
 
-    buf, err := os.read_entire_file_from_path("vienna.pgn", context.temp_allocator)
+    buf, err := os.read_entire_file_from_path("walid.pgn", context.temp_allocator)
     browser.pgn_creation_window.textbox_string_raw = string(buf) 
     write_nested_pgn(&browser)
     assert(false)

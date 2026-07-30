@@ -711,7 +711,7 @@ write_nested_pgn :: proc(browser: ^Browser){
 
     names := [?]string{"walid2.pgn", "walid3.pgn", "walid4.pgn", "walid5.pgn", "walid6.pgn", "walid7.pgn", "walid8.pgn", "walid9.pgn", "walid10.pgn", "walid11.pgn", "walid12.pgn"}
     names_idx := 0
-    desired_depth_levels := [?]int{3, 3}
+    desired_depth_levels := [?]int{5, 4, 2}
 
     for i in 0..<len(desired_depth_levels){
         desired_depth_lvl := i + 1
@@ -721,7 +721,9 @@ write_nested_pgn :: proc(browser: ^Browser){
             cur_depth_lvl := 0
             bracket_count := 0
             ignore := false
+
             in_correct_root := false
+            correct_root_depth_lvl := -1
 
             for c, i in str[last_square_bracket_idx:]{
                 if c == '('{
@@ -735,13 +737,14 @@ write_nested_pgn :: proc(browser: ^Browser){
                         ignore = true
                     }
                     if bracket_count + lookup_bracket_pair_at_depth_lvl(str[last_square_bracket_idx + i:], cur_depth_lvl, desired_depth_lvl) < desired_bracket_count{
-                        if cur_depth_lvl < desired_depth_lvl{
+                        if cur_depth_lvl < correct_root_depth_lvl{
                             in_correct_root = false
                         }
                         ignore = true
                     }
                     else{
                         in_correct_root = true
+                        correct_root_depth_lvl = cur_depth_lvl
                     }
                     continue //skipping writing '(' into the builder
                 }
@@ -758,6 +761,9 @@ write_nested_pgn :: proc(browser: ^Browser){
                     }
                 }
 
+                if names_idx == 9{
+                    fmt.println(rune(c), in_correct_root)
+                }
 
                 if ignore{
                     continue
