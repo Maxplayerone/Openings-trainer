@@ -1,0 +1,1 @@
+- popracuj nad splitting multiply-nested pgns. Problem w vienna7 jest taki, że zapisuje ona ruchy z pierwszego nawiasu. Zobacz jak temu zapobiec

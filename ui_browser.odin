@@ -670,59 +670,62 @@ write_nested_pgn :: proc(browser: ^Browser){
             }
             strings.write_rune(&b, c)
         }
-        err := os.write_entire_file_from_string("vienna1.pgn", strings.to_string(b))
+        err := os.write_entire_file_from_string("walid1.pgn", strings.to_string(b))
         assert(err == nil)
         strings.builder_reset(&b)
         strings.write_string(&b, str[:last_square_bracket_idx])
     }
 
 
-    names := [?]string{"vienna2.pgn", "vienna3.pgn", "vienna4.pgn", "vienna5.pgn", "vienna6.pgn", "vienna7.pgn"}
+    names := [?]string{"walid2.pgn", "walid3.pgn", "walid4.pgn", "walid5.pgn", "walid6.pgn", "walid7.pgn"}
     names_idx := 0
-    desired_bracket_count_max := 6
-    desired_depth_lvl := 1
+    desired_depth_levels := [?]int{5}
 
-    for desired_bracket_count in 1..=desired_bracket_count_max{
-        cur_depth_lvl := 0
-        bracket_count := 0
-        ignore := false
+    for i in 0..<len(desired_depth_levels){
+        desired_depth_lvl := i + 1
 
-        for c in str[last_square_bracket_idx:]{
-            if c == '('{
-                cur_depth_lvl += 1
+        for desired_bracket_count in 1..=desired_depth_levels[i]{
+            cur_depth_lvl := 0
+            bracket_count := 0
+            ignore := false
 
-                if cur_depth_lvl == desired_depth_lvl{
-                    bracket_count += 1
+            for c in str[last_square_bracket_idx:]{
+                if c == '('{
+                    cur_depth_lvl += 1
+
+                    if cur_depth_lvl == desired_depth_lvl{
+                        bracket_count += 1
+                    }
+
+                    if cur_depth_lvl > desired_depth_lvl || (cur_depth_lvl == desired_depth_lvl && bracket_count != desired_bracket_count){
+                        ignore = true
+                    }
+                    continue //skipping writing '(' into the builder
+                }
+                else if c == ')'{
+                    if cur_depth_lvl == desired_depth_lvl && bracket_count == desired_bracket_count{
+                        break
+                    }
+
+                    cur_depth_lvl -= 1
+                    if (cur_depth_lvl < desired_depth_lvl) || (cur_depth_lvl <= desired_depth_lvl && bracket_count == desired_bracket_count){
+                        ignore = false
+                        continue
+                    }
                 }
 
-                if cur_depth_lvl > desired_depth_lvl || bracket_count != desired_bracket_count{
-                    ignore = true
-                }
-                continue //skipping writing '(' into the builder
-            }
-            else if c == ')'{
-                cur_depth_lvl -= 1
-
-                if cur_depth_lvl + 1 == desired_depth_lvl && bracket_count == desired_bracket_count{
-                    break
-                }
-                if (cur_depth_lvl < desired_depth_lvl) || (cur_depth_lvl <= desired_depth_lvl && bracket_count == desired_bracket_count){
-                    ignore = false
+                if ignore{
                     continue
                 }
+                strings.write_rune(&b, c)
             }
 
-            if ignore{
-                continue
-            }
-            strings.write_rune(&b, c)
+            err := os.write_entire_file_from_string(names[names_idx], strings.to_string(b))
+            names_idx += 1
+            assert(err == nil)
+            strings.builder_reset(&b)
+            strings.write_string(&b, str[:last_square_bracket_idx])
         }
-
-        err := os.write_entire_file_from_string(names[names_idx], strings.to_string(b))
-        names_idx += 1
-        assert(err == nil)
-        strings.builder_reset(&b)
-        strings.write_string(&b, str[:last_square_bracket_idx])
     }
 }
 
