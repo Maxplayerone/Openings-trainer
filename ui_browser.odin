@@ -657,36 +657,6 @@ lookup_bracket_pair_at_depth_lvl :: proc(str: string, cur_depth_lvl, desired_dep
     return -1
 }
 
-lookup_bracket_pair_at_depth_lvl2 :: proc(str: string, cur_depth_lvl, desired_depth_lvl: int) -> int{
-    opened_brackets := 0
-    bracket_pair_at_depth_lvl := 0
-    cur_depth_lvl := cur_depth_lvl
-
-    for c in str[0:]{
-        if c == '('{
-            opened_brackets += 1
-            cur_depth_lvl += 1
-
-            if cur_depth_lvl == desired_depth_lvl{
-                bracket_pair_at_depth_lvl += 1
-            }
-        }
-        else if c == ')'{
-            opened_brackets -= 1
-            cur_depth_lvl -= 1
-
-            if opened_brackets == -1{
-                return bracket_pair_at_depth_lvl
-            }
-        }
-    }
-
-    //the function should break when we get to the closing bracket pair for the first char in str
-    //if that didn't happen it means the given string's opened and closed brackets don't match 
-    assert(false)
-    return -1
-}
-
 write_nested_pgn :: proc(browser: ^Browser){
     //check if every bracket opening has a closing
     opened_brackets := 0
@@ -732,7 +702,7 @@ write_nested_pgn :: proc(browser: ^Browser){
             }
             strings.write_rune(&b, c)
         }
-        err := os.write_entire_file_from_string("walid1.pgn", strings.to_string(b))
+        err := os.write_entire_file_from_string("vienna1.pgn", strings.to_string(b))
         assert(err == nil)
         strings.builder_reset(&b)
         strings.write_string(&b, str[:last_square_bracket_idx])
@@ -741,7 +711,7 @@ write_nested_pgn :: proc(browser: ^Browser){
 
     names := [?]string{"walid2.pgn", "walid3.pgn", "walid4.pgn", "walid5.pgn", "walid6.pgn", "walid7.pgn", "walid8.pgn", "walid9.pgn", "walid10.pgn", "walid11.pgn", "walid12.pgn"}
     names_idx := 0
-    desired_depth_levels := [?]int{5, 4, 2}
+    desired_depth_levels := [?]int{3, 3}
 
     for i in 0..<len(desired_depth_levels){
         desired_depth_lvl := i + 1
@@ -764,7 +734,7 @@ write_nested_pgn :: proc(browser: ^Browser){
                     if cur_depth_lvl > desired_depth_lvl || (cur_depth_lvl == desired_depth_lvl && bracket_count != desired_bracket_count){
                         ignore = true
                     }
-                    if bracket_count + lookup_bracket_pair_at_depth_lvl(str[i:], cur_depth_lvl, desired_depth_lvl) < desired_bracket_count{
+                    if bracket_count + lookup_bracket_pair_at_depth_lvl(str[last_square_bracket_idx + i:], cur_depth_lvl, desired_depth_lvl) < desired_bracket_count{
                         if cur_depth_lvl < desired_depth_lvl{
                             in_correct_root = false
                         }
