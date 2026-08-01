@@ -1,1 +1,1 @@
-- popracuj nad splitting multiply-nested pgns. Problem w vienna7 jest taki, że zapisuje ona ruchy z pierwszego nawiasu. Zobacz jak temu zapobiec
+- popracuj nadal nad defect function (przetestuj czy caro-kann_2Nc3 działa, dodatkowo dodaj funkcjonalność przy overidowaniu pierwszego ruchu (na razie jest override tylko drugiego))

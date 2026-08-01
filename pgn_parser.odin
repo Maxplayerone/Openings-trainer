@@ -89,6 +89,11 @@ lexer_is_number :: proc(c: u8) -> bool{
     return c >= '0' && c <= '9' 
 }
 
+lexer_is_letter :: proc(c: u8) -> bool{
+    //theoretically c >= 49 because the first digit cannot be a 0 but I don't think it's a big deal 
+    return c >= 'a' && c <= 'z'  || c >= 'A' && c <= 'Z'
+}
+
 lexer_read_number :: proc(lexer: ^Lexer) -> Token{
     start := lexer.cur_position - 1
     peek_char := lexer_peek_char(lexer^)

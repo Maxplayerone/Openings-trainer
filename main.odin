@@ -38,17 +38,38 @@ main :: proc(){
         assert(false)
     }
 
-    buf, err := os.read_entire_file_from_path("walid.pgn", context.temp_allocator)
+    b := strings.builder_make()
+    strings.write_string(&b, "1. e4 c6 2. d4  2. Nc3 d5 3. Qf3")
+    remove_defects_from_builder(&b)
+    fmt.println(strings.to_string(b))
+
+    strings.builder_reset(&b)
+    strings.write_string(&b, "1. e4 c6 2. d4 2. Nf3 d5 3. Nc3 Bg4 3... a6 4. d4 Bg4")
+    remove_defects_from_builder(&b)
+    fmt.println(strings.to_string(b))
+
+    strings.builder_reset(&b)
+    strings.write_string(&b, "1. e4 c6 2. d4   2... d5 3. e5     3... c5 3... Bf5 4. Nf3  4. c4")
+    remove_defects_from_builder(&b)
+    fmt.println(strings.to_string(b))
+
+    strings.builder_reset(&b)
+    strings.write_string(&b, "1. e4 c6 2. d4   2... d5 3. e5    3. f3 g6 3... dxe4 4. fxe4")
+    remove_defects_from_builder(&b)
+    fmt.println(strings.to_string(b))
+
+    assert(false)
+
+    buf, err := os.read_entire_file_from_path("caro-kann.pgn", context.temp_allocator)
+    assert(err == nil)
     browser.pgn_creation_window.textbox_string_raw = string(buf) 
     write_nested_pgn(&browser)
-    assert(false)
-    /*
-    moves, ok2 := read_pgn("vienna1.pgn", board.pieces[:])
+    moves, ok2 := read_pgn("caro-kann_main", board.pieces[:])
     if !ok2{
         fmt.println("not ok")
+        assert(false)
     }
     board.moves = moves
-    */
 
     for !rl.WindowShouldClose(){
 

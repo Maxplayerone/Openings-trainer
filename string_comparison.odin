@@ -130,9 +130,8 @@ sort_file_infos :: proc(file_infos: []os.File_Info, allocator := context.allocat
                 tmp := sorted[j]
                 sorted[j] = sorted[j + 1]
                 sorted[j + 1] = tmp
+                swapped = true
             }
-
-            swapped = true
         }
 
         if !swapped{
