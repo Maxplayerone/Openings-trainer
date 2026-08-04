@@ -173,52 +173,162 @@ nested_pgn_prepass :: proc(str, filename: string, allocator := context.allocator
     return last_square_bracket_idx, depth_lvls, name_postfixes
 }
 
+move_count_to_num :: proc(tok: Token) -> int{
+    assert(tok.type == .MoveCount)
+    num, ok := strconv.parse_int(tok.lexeme[:len(tok.lexeme)-1])
+    assert(ok)
+    return num
+}
+
 remove_defects_from_builder :: proc(b: ^strings.Builder, allocator := context.allocator){
     str := strings.clone(strings.to_string(b^), allocator)
     strings.builder_reset(b)
+    lexer := Lexer{input=str}
 
-    i := 0
-    last_move_count := -1
+    tokens := make([dynamic]Token, allocator)
+    cur_tok_idx := 0
 
-    //(NOTE): I might be wrong about how to remove defects from pgn's that have the same move three times but it 
-    //seems like you those situations you have to remove the middle move
-    seen_same_move_count_count := 1 
+    for tok := lexer_next_token(&lexer); tok.type != .EOF; tok = lexer_next_token(&lexer){
+        append(&tokens, tok)
+    }
+    append(&tokens, Token{.EOF, "eof", 67})
 
-    moves_indicies_btw_move_counts := [3]int{-1, -1, -1}
-    for i < len(str){
-        //checking if it's a move count
-        if i + 1 < len(str) && lexer_is_number(str[i]){
-            tmp_idx := i + 1
-            for lexer_is_number(str[tmp_idx]){
-                tmp_idx += 1
-            }
-            //reading move count
-            if str[tmp_idx] == '.'{
-                new_last_move_count, ok := strconv.parse_int(str[i:tmp_idx])
-                if !ok{
-                    fmt.println("Couldn't read move count. The string we've tried to parse is:", str[i:tmp_idx])
+    for tokens[cur_tok_idx].type == .Metadata{
+        strings.write_string(b, tokens[cur_tok_idx].lexeme)
+        strings.write_rune(b, '\n')
+        cur_tok_idx += 1
+    }
+
+    MoveInfo :: struct{
+        move_lexeme: string,
+        same_number_count: int,
+    }
+
+    for tokens[cur_tok_idx].type == .MoveCount{
+        move_btw_movecounts: [4]MoveInfo
+        mbmc_idx := 0
+        same_number_count := 0
+        cur_move_count := move_count_to_num(tokens[cur_tok_idx])
+        cur_tok_idx += 1
+
+        //calculate info about moves between two differently numbered move counts
+        inner: for{
+            switch tokens[cur_tok_idx].type{
+                case .Error:
+                case .Metadata:
+                case .Promotion, .Checkmate, .Check:
                     assert(false)
-                }
-
-                //remove defect
-                if new_last_move_count == last_move_count{
-                    seen_same_move_count_count += 1
-
-                    fmt.println(seen_same_move_count_count)
-                    for str[tmp_idx] == '.'{
-                        tmp_idx += 1
+                case .EOF, .FinalVerdict:
+                    break inner
+                case .MoveCount:
+                    next_move_count := move_count_to_num(tokens[cur_tok_idx])
+                    if next_move_count != cur_move_count{
+                        break inner
                     }
-                    i = tmp_idx
-                }
-                else{
-                    last_move_count = new_last_move_count
-                    seen_same_move_count_count = 1
-                }
-            }
-        }
+                    else{
+                        same_number_count += 1
+                    }
+                case .Castles, .Capture, .CaptureAmbiguity, .PieceIndicator:
+                    move_len := len(tokens[cur_tok_idx].lexeme)
+                    starting_idx := tokens[cur_tok_idx].idx
 
-        strings.write_rune(b, rune(str[i]))
-        i += 1
+                    if tokens[cur_tok_idx].type == .PieceIndicator{
+                        assert(tokens[cur_tok_idx + 1].type == .MoveCoordinates)
+                        move_len += 2
+                        cur_tok_idx += 1
+                    }
+                    if cur_tok_idx + 1 < len(tokens) && (tokens[cur_tok_idx + 1].type == .Check || tokens[cur_tok_idx + 1].type == .Checkmate) {
+                        move_len += 1
+                        cur_tok_idx += 1
+                    }
+                    else if cur_tok_idx + 1 < len(tokens) && tokens[cur_tok_idx + 1].type == .Promotion{
+                        move_len += 2
+                        cur_tok_idx += 1
+                    }
+                    move_btw_movecounts[mbmc_idx] = MoveInfo{
+                        move_lexeme = str[starting_idx:starting_idx+move_len],
+                        same_number_count = same_number_count,
+                    }
+                    mbmc_idx += 1
+                case .MoveCoordinates:
+                    if tokens[cur_tok_idx - 1].type != .PieceIndicator{
+                        move_len := 2
+                        starting_idx := tokens[cur_tok_idx].idx
+
+                        if cur_tok_idx + 1 < len(tokens) && (tokens[cur_tok_idx + 1].type == .Check || tokens[cur_tok_idx + 1].type == .Checkmate) {
+                            move_len += 1
+                            cur_tok_idx += 1
+                        }
+                        else if cur_tok_idx + 1 < len(tokens) && tokens[cur_tok_idx + 1].type == .Promotion{
+                            move_len += 2
+                            cur_tok_idx += 1
+                        }
+                        move_btw_movecounts[mbmc_idx] = MoveInfo{
+                            move_lexeme = str[starting_idx:starting_idx+move_len],
+                            same_number_count = same_number_count,
+                        }
+                        mbmc_idx += 1
+                    }
+            }
+            cur_tok_idx += 1
+        } 
+
+        //write to the builder based on the results
+        strings.write_int(b, cur_move_count)
+        strings.write_string(b, ". ")
+        if mbmc_idx == 1{
+            strings.write_string(b, move_btw_movecounts[0].move_lexeme)
+            strings.write_rune(b, ' ')
+        }
+        else if mbmc_idx == 2 &&
+        ((move_btw_movecounts[0] .same_number_count == 0 && move_btw_movecounts[1].same_number_count == 0) ||
+        (move_btw_movecounts[0].same_number_count == 0 && move_btw_movecounts[1].same_number_count == 1)){
+            strings.write_string(b, move_btw_movecounts[0].move_lexeme)
+            strings.write_rune(b, ' ')
+            strings.write_string(b, move_btw_movecounts[1].move_lexeme)
+            strings.write_rune(b, ' ')
+        }
+        else if mbmc_idx == 3 && move_btw_movecounts[0].same_number_count == 0 && move_btw_movecounts[1].same_number_count == 0 && move_btw_movecounts[2].same_number_count == 1{
+            strings.write_string(b, move_btw_movecounts[0].move_lexeme)
+            strings.write_rune(b, ' ')
+            strings.write_string(b, move_btw_movecounts[2].move_lexeme)
+            strings.write_rune(b, ' ')
+        }
+        else if mbmc_idx == 3 && move_btw_movecounts[0].same_number_count == 0 && move_btw_movecounts[1].same_number_count == 1 && move_btw_movecounts[2].same_number_count == 1{
+            strings.write_string(b, move_btw_movecounts[1].move_lexeme)
+            strings.write_rune(b, ' ')
+            strings.write_string(b, move_btw_movecounts[2].move_lexeme)
+            strings.write_rune(b, ' ')
+        }
+        else if mbmc_idx == 3 && move_btw_movecounts[0].same_number_count == 0 && move_btw_movecounts[1].same_number_count == 1 && move_btw_movecounts[2].same_number_count == 2{
+            strings.write_string(b, move_btw_movecounts[0].move_lexeme)
+            strings.write_rune(b, ' ')
+            strings.write_string(b, move_btw_movecounts[2].move_lexeme)
+            strings.write_rune(b, ' ')
+        }
+        else if mbmc_idx == 4{
+            assert(move_btw_movecounts[0].same_number_count == 0)
+            assert(move_btw_movecounts[1].same_number_count == 1)
+            assert(move_btw_movecounts[2].same_number_count == 1)
+            assert(move_btw_movecounts[3].same_number_count == 2)
+
+            strings.write_string(b, move_btw_movecounts[1].move_lexeme)
+            strings.write_rune(b, ' ')
+            strings.write_string(b, move_btw_movecounts[3].move_lexeme)
+            strings.write_rune(b, ' ')
+        }
+        else{
+            fmt.println("We don't handle this situation:")
+            fmt.println("move_btw_movecounts:")
+            for mbmc in move_btw_movecounts{
+                fmt.println(mbmc)
+            }
+            assert(false)
+        }
+    }
+
+    if tokens[cur_tok_idx].type == .FinalVerdict{
+        strings.write_string(b, tokens[cur_tok_idx].lexeme)
     }
 }
 
@@ -248,7 +358,7 @@ write_nested_pgn :: proc(browser: ^Browser){
             strings.write_rune(&b, c)
         }
 
-        remove_defects_from_builder(&b, context.temp_allocator)
+        //remove_defects_from_builder(&b, context.temp_allocator)
         err := os.write_entire_file_from_string(name_postfixes[name_postfixes_idx], strings.to_string(b))
         name_postfixes_idx += 1
         assert(err == nil)

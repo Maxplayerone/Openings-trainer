@@ -39,7 +39,12 @@ main :: proc(){
     }
 
     b := strings.builder_make()
-    strings.write_string(&b, "1. e4 c6 2. d4  2. Nc3 d5 3. Qf3")
+    strings.write_string(&b, "1. e4 c6 2. Nc3 d5 3. Qf3")
+    remove_defects_from_builder(&b)
+    fmt.println(strings.to_string(b))
+
+    strings.builder_reset(&b)
+    strings.write_string(&b, "1. e4 e5 2. Nf3  2... Nc6 3. Bc4 Bc5 *")
     remove_defects_from_builder(&b)
     fmt.println(strings.to_string(b))
 
@@ -54,7 +59,7 @@ main :: proc(){
     fmt.println(strings.to_string(b))
 
     strings.builder_reset(&b)
-    strings.write_string(&b, "1. e4 c6 2. d4   2... d5 3. e5    3. f3 g6 3... dxe4 4. fxe4")
+    strings.write_string(&b, "1. e4 c6 2. d4   2... d5 3. e5   3. exd5 cxd5 4. c4 4. Nf3 Nc6 4... g6")
     remove_defects_from_builder(&b)
     fmt.println(strings.to_string(b))
 

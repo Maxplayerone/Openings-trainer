@@ -34,6 +34,7 @@ TokenType :: enum{
 Token :: struct{
     type: TokenType,
     lexeme: string,
+    idx: int,
 }
 
 Lexer :: struct{
@@ -75,13 +76,13 @@ lexer_read_brackets :: proc(lexer: ^Lexer) -> Token{
     for peek_char != ']'{
         if lexer.cur_position >= len(lexer.input) || peek_char == '['{
             fmt.println("[Error in lexer_read_brackets] unclosed metadata bracket object")
-            return Token{.Error, "Error"}
+            return Token{.Error, "Error", -1}
         }
         lexer_next_char(lexer)
         peek_char = lexer_peek_char(lexer^)
     }
     lexer_next_char(lexer)
-    return {.Metadata, lexer.input[start:lexer.cur_position]}
+    return {.Metadata, lexer.input[start:lexer.cur_position], start}
 }
 
 lexer_is_number :: proc(c: u8) -> bool{
@@ -100,7 +101,7 @@ lexer_read_number :: proc(lexer: ^Lexer) -> Token{
     for peek_char != '.'{
         if !lexer_is_number(peek_char){
             fmt.println("[Error in lexer_read_number] expected a number. Got ", rune(peek_char), peek_char)
-            return Token{.Error, "Error"}
+            return Token{.Error, "Error", -1}
         }
 
         lexer_next_char(lexer)
@@ -108,7 +109,7 @@ lexer_read_number :: proc(lexer: ^Lexer) -> Token{
     }
     lexer_next_char(lexer)
 
-    return {.MoveCount, lexer.input[start:lexer.cur_position]}
+    return {.MoveCount, lexer.input[start:lexer.cur_position], start}
 }
 
 lexer_read_move_coordinate :: proc(lexer: ^Lexer, cur_char: byte) -> Token{
@@ -116,90 +117,93 @@ lexer_read_move_coordinate :: proc(lexer: ^Lexer, cur_char: byte) -> Token{
     peek_ch := lexer_peek_char(lexer^)
     if lexer_is_number(peek_ch){
         lexer_next_char(lexer)
-        return Token{.MoveCoordinates, lexer.input[start:start+2]}
+        return Token{.MoveCoordinates, lexer.input[start:start+2], start}
     }
     else if peek_ch == 'x'{
         return lexer_read_capture(lexer)
     }
     else{
         fmt.println("[Error in lexer_read_move_coordinate] next character should be a number. Got ", rune(peek_ch), peek_ch)
-        return Token{.Error, "Error"}
+        return Token{.Error, "Error", -1}
     }
 }
 
 lexer_read_draw :: proc(lexer: ^Lexer) -> Token{
+    idx := lexer.cur_position - 1
     //we know the peek char was / so we can move to the next one
     lexer_next_char(lexer)
     if lexer_peek_char(lexer^) != '2'{
         fmt.println("[Error in lexer_read_draw] Expected 1/2-1/2 got 1/[?]")
-        return Token{.Error, "Error"}
+        return Token{.Error, "Error", -1}
     }
     lexer_next_char(lexer)
     if lexer_peek_char(lexer^) != '-'{
         fmt.println("[Error in lexer_read_draw] Expected 1/2-1/2 got 1/2[?]")
-        return Token{.Error, "Error"}
+        return Token{.Error, "Error", -1}
     }
     lexer_next_char(lexer)
     if lexer_peek_char(lexer^) != '1'{
         fmt.println("[Error in lexer_read_draw] Expected 1/2-1/2 got 1/2-[?]")
-        return Token{.Error, "Error"}
+        return Token{.Error, "Error", -1}
     }
     lexer_next_char(lexer)
     if lexer_peek_char(lexer^) != '/'{
         fmt.println("[Error in lexer_read_draw] Expected 1/2-1/2 got 1/2-1[?]")
-        return Token{.Error, "Error"}
+        return Token{.Error, "Error", -1}
     }
     lexer_next_char(lexer)
     if lexer_peek_char(lexer^) != '2'{
         fmt.println("[Error in lexer_read_draw] Expected 1/2-1/2 got 1/2-1/[?]")
-        return Token{.Error, "Error"}
+        return Token{.Error, "Error", -1}
     }
     lexer_next_char(lexer)
-    return Token{.FinalVerdict, "1/2-1/2"}
+    return Token{.FinalVerdict, "1/2-1/2", idx}
 }
 
 lexer_read_white_won :: proc(lexer: ^Lexer) -> Token{
+    idx := lexer.cur_position - 1
     lexer_next_char(lexer)
     if lexer_peek_char(lexer^) != '0'{
         fmt.println("[Error in lexer_read_white_won] Expected 1-0 got 1-[?]")
-        return Token{.Error, "Error"}
+        return Token{.Error, "Error", -1}
     }
     lexer_next_char(lexer)
-    return Token{.FinalVerdict, "1-0"}
+    return Token{.FinalVerdict, "1-0", idx}
 }
 
 lexer_read_castles :: proc(lexer: ^Lexer) -> Token{
+    idx := lexer.cur_position - 1
     if lexer_peek_char(lexer^) != '-'{
         fmt.println("[Error in lexer_read_castles] Expected char -. Got ", rune(lexer_peek_char(lexer^)), lexer_peek_char(lexer^))
-        return Token{.Error, "Error"}
+        return Token{.Error, "Error", idx}
     }
     lexer_next_char(lexer)
     if lexer_peek_char(lexer^) != 'O'{
         fmt.println("[Error in lexer_read_castles] Expected char O. Got ", rune(lexer_peek_char(lexer^)), lexer_peek_char(lexer^))
-        return Token{.Error, "Error"}
+        return Token{.Error, "Error", idx}
     }
     lexer_next_char(lexer)
     if lexer_peek_char(lexer^) != '-'{
-        return Token{.Castles, "O-O"}
+        return Token{.Castles, "O-O", idx}
     }
     lexer_next_char(lexer)
     if lexer_peek_char(lexer^) != 'O'{
         fmt.println("[Error in lexer_read_castles] Expected char O. Got ", rune(lexer_peek_char(lexer^)), lexer_peek_char(lexer^))
-        return Token{.Error, "Error"}
+        return Token{.Error, "Error", idx}
     }
     lexer_next_char(lexer)
-    return Token{.Castles, "O-O-O"}
+    return Token{.Castles, "O-O-O", idx}
 }
 
 lexer_read_promotion :: proc(lexer: ^Lexer) -> Token{
     peek_ch := lexer_peek_char(lexer^)
     if peek_ch == 'S' || peek_ch == 'W' || peek_ch == 'G' || peek_ch == 'H' || peek_ch == 'Q' || peek_ch == 'R' || peek_ch == 'B' || peek_ch == 'N'{
         lexer_next_char(lexer)
-        return Token{.Promotion, lexer.input[lexer.cur_position-2:lexer.cur_position]}
+        return Token{.Promotion, lexer.input[lexer.cur_position-2:lexer.cur_position], lexer.cur_position - 2}
     }
     else{
         fmt.println("[Error in lexer_read_promotion] Expected W, S, G or H. Got ", rune(peek_ch), peek_ch)
-        return Token{.Error, "Error"}
+        return Token{.Error, "Error", lexer.cur_position - 2}
     }
 }
 
@@ -210,7 +214,7 @@ lexer_read_capture :: proc(lexer: ^Lexer) -> Token{
         lexer_next_char(lexer)
         peek_char = lexer_peek_char(lexer^)
     } 
-    return Token{.Capture, lexer.input[start:lexer.cur_position]}
+    return Token{.Capture, lexer.input[start:lexer.cur_position], start}
 }
 
 lexer_read_capture_ambiguity :: proc(lexer: ^Lexer) -> Token{
@@ -227,7 +231,7 @@ lexer_next_token :: proc(lexer: ^Lexer) -> Token{
         case '[':
             return lexer_read_brackets(lexer)
         case '*':
-            return Token{.FinalVerdict, "*"}
+            return Token{.FinalVerdict, "*", lexer.cur_position}
         case 'a'..='h':
             return lexer_read_move_coordinate(lexer, ch)
         case 'O':
@@ -237,19 +241,19 @@ lexer_next_token :: proc(lexer: ^Lexer) -> Token{
                 return lexer_read_capture(lexer) 
             }
             else{
-                return Token{.PieceIndicator, "B"}
+                return Token{.PieceIndicator, "B", lexer.cur_position - 1}
             }
         case 'K':
             if lexer_peek_char(lexer^) == 'x'{
                 return lexer_read_capture(lexer) 
             }
             else{
-                return Token{.PieceIndicator, "K"}
+                return Token{.PieceIndicator, "K", lexer.cur_position - 1}
             }
         case '+':
-            return Token{.Check, "+"}
+            return Token{.Check, "+", lexer.cur_position - 1}
         case '#':
-            return Token{.Checkmate, "#"}
+            return Token{.Checkmate, "#", lexer.cur_position - 1}
         case '=':
             return lexer_read_promotion(lexer)
         case '1'..='9': 
@@ -272,14 +276,14 @@ lexer_next_token :: proc(lexer: ^Lexer) -> Token{
                 }
                 else{
                     lexer_next_char(lexer)
-                    return Token{.PieceIndicator, lexer.input[lexer.cur_position - 2:lexer.cur_position]}
+                    return Token{.PieceIndicator, lexer.input[lexer.cur_position - 2:lexer.cur_position], lexer.cur_position - 2}
                 }
             }
             else if peek_ch == 'x'{
                 return lexer_read_capture(lexer)
             }
 
-            return Token{.PieceIndicator, "N"}
+            return Token{.PieceIndicator, "N", lexer.cur_position - 1}
         case 'R':
             double_peek_ch := lexer_peek_char(lexer^, 1)
             peek_ch := lexer_peek_char(lexer^)
@@ -290,14 +294,14 @@ lexer_next_token :: proc(lexer: ^Lexer) -> Token{
                 }
                 else{
                     lexer_next_char(lexer)
-                    return Token{.PieceIndicator, lexer.input[lexer.cur_position - 2:lexer.cur_position]}
+                    return Token{.PieceIndicator, lexer.input[lexer.cur_position - 2:lexer.cur_position], lexer.cur_position - 2}
                 }
             }
             else if peek_ch == 'x'{
                 return lexer_read_capture(lexer)
             }
 
-            return Token{.PieceIndicator, "R"}
+            return Token{.PieceIndicator, "R", lexer.cur_position - 1}
         case 'Q':
             double_peek_ch := lexer_peek_char(lexer^, 1)
             peek_ch := lexer_peek_char(lexer^)
@@ -308,18 +312,24 @@ lexer_next_token :: proc(lexer: ^Lexer) -> Token{
                 }
                 else{
                     lexer_next_char(lexer)
-                    return Token{.PieceIndicator, lexer.input[lexer.cur_position - 2:lexer.cur_position]}
+                    return Token{.PieceIndicator, lexer.input[lexer.cur_position - 2:lexer.cur_position], lexer.cur_position - 2}
                 }
             }
             else if peek_ch == 'x'{
                 return lexer_read_capture(lexer)
             }
 
-            return Token{.PieceIndicator, "Q"}
+            return Token{.PieceIndicator, "Q", lexer.cur_position - 1}
         case 0:
-            return Token{.EOF, "eof"}
+            return Token{.EOF, "eof", lexer.cur_position - 1}
         case:
-            return Token{.Error, "Error"}
+            //used for information in remove_defects_from_builder function in pgn_splitter
+            if ch == '.'{
+                return Token{.Error, ".", lexer.cur_position - 1}
+            }
+            else{
+                return Token{.Error, "Error", -1}
+            }
     }
 }
 
@@ -538,8 +548,7 @@ read_pgn :: proc(filename: string, pieces: []Piece) -> ([dynamic]Move, bool){
     for tok := lexer_next_token(&lexer); tok.type != .EOF; tok = lexer_next_token(&lexer){
         fmt.println(tok)
     }
-    success := true
-    */
+        */
     parser := parser_create(lexer)
     success := parser_parse(&parser) 
 

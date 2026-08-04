@@ -1,1 +1,51 @@
-- popracuj nadal nad defect function (przetestuj czy caro-kann_2Nc3 działa, dodatkowo dodaj funkcjonalność przy overidowaniu pierwszego ruchu (na razie jest override tylko drugiego))
+tokens: [dynamic]Token
+cur_tok_idx := 0
+b := strings.builder_make()
+
+for tokens[cur_tok_idx].type == .Metadata{
+    strings.write_string(&b, tokens[cur_tok_idx])
+
+    //possibly will have to add a newline because I think
+    //lexer doesn't track them
+
+    cur_tok_idx += 1
+}
+
+MoveInfo :: struct{
+    idx: int,
+    same_number_count: int,
+}
+
+for tokens[cur_tok_idx] == .MoveCount{
+    moves_btw_movecounts: [4]MoveInfo
+    mbmc_idx := 0
+    cur_move_count := move_count_token_to_num(tokens[cur_tok_idx]) 
+
+    //(IMPL) get all the moves between differently numbered move counts
+
+    //(IMPL) four scenarios
+
+    // if mbmc_idx == 2 and mbmc[0] and mbmc[1] have same_number_count == 0
+    //then you can just write them because everything's fine
+
+    //if mbmc_idx == 2 and mbmc[0].snc == 0 and mbmc[1].snc == 1
+    //then you just write those moves
+
+    //if mbmc_idx == 3 and mbmc[0].snc == 0 and mbmc[1] == 0 and mbmc[2] == 1
+    //then write mbmc[1] and mbmc[2]
+
+    // if mbmc_idx == 3 and mbmc[0].snc == 0 and mbmc[1].snc == 0 and mbmc[2] == 1
+    //then write mbmc[0] and mbmc[2]
+
+    //if mbmc_idx == 3 and mbmc[0].snc == 0 and mbmc[1].snc == 1 and mbmc[2]snc == 2
+    //then write mbmc[0] and mbmc[2]
+
+    //if mbmc_idx == 4
+    //then assert that mbmc[0].snc == 0 and mbmc[1].snc == 1 and mbmc[2].snc == 1 and mbmc[3].snc == 2
+    //because I don't think there exists a different possibility but I'm not sure
+    //and then write mbmc[1] and mbmc[3]
+}
+
+if tokens[len(tokens)-1].type == .FinalVerdict{
+    strings.write_string(&b, tokens[len(tokens)-1])
+}
