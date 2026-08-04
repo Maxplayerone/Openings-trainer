@@ -358,7 +358,7 @@ write_nested_pgn :: proc(browser: ^Browser){
             strings.write_rune(&b, c)
         }
 
-        //remove_defects_from_builder(&b, context.temp_allocator)
+        remove_defects_from_builder(&b, context.temp_allocator)
         err := os.write_entire_file_from_string(name_postfixes[name_postfixes_idx], strings.to_string(b))
         name_postfixes_idx += 1
         assert(err == nil)
@@ -427,6 +427,7 @@ write_nested_pgn :: proc(browser: ^Browser){
                 strings.write_rune(&b, c)
             }
 
+            remove_defects_from_builder(&b, context.temp_allocator)
             err := os.write_entire_file_from_string(name_postfixes[name_postfixes_idx], strings.to_string(b))
             name_postfixes_idx += 1
             assert(err == nil)
