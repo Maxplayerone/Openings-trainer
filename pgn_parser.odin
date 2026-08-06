@@ -2,6 +2,7 @@ package main
 
 import "core:os"
 import "core:fmt"
+import "core:strings"
 
 Move :: struct{
     from: int,
@@ -340,6 +341,7 @@ Parser :: struct{
     piece_ambiguity: bool,
     ambiguity_lexeme: string,
     moves: [dynamic]Move,
+    picked_white: bool,
 }
 
 parser_create :: proc(lexer: Lexer, allocator := context.allocator) -> Parser{
@@ -406,6 +408,10 @@ parser_parse :: proc(parser: ^Parser) -> bool{
             case .EOF:
                 return true
             case .Metadata:
+                if strings.contains(tok.lexeme, "Picked White"){
+                    parser.picked_white = true
+                }
+
             case .FinalVerdict:
             case .MoveCount:
             case .Capture:
@@ -534,11 +540,11 @@ parser_parse :: proc(parser: ^Parser) -> bool{
     return true
 }
 
-read_pgn :: proc(filename: string, pieces: []Piece) -> ([dynamic]Move, bool){
+read_pgn :: proc(filename: string, pieces: []Piece) -> ([dynamic]Move, bool, bool){
     file_contents_u8, err := os.read_entire_file_from_path(filename, context.temp_allocator)    
     if err != nil{
         fmt.println("Error opening the file", filename, ":", err)
-        return {}, false
+        return {}, false, false
     }
 
     file_contents_str := transmute(string)file_contents_u8
@@ -552,5 +558,5 @@ read_pgn :: proc(filename: string, pieces: []Piece) -> ([dynamic]Move, bool){
     parser := parser_create(lexer)
     success := parser_parse(&parser) 
 
-    return parser.moves, success
+    return parser.moves, parser.picked_white, success
 }

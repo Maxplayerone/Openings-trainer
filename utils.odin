@@ -31,8 +31,27 @@ to_rect :: proc(pos: rl.Vector2, size: f32) -> rl.Rectangle{
     return rl.Rectangle{pos.x, pos.y, size, size}
 }
 
+rect_expand :: proc(rect: rl.Rectangle, expand_factor: f32) -> rl.Rectangle{
+    return rl.Rectangle{rect.x - expand_factor, rect.y - expand_factor, rect.width + 2 * expand_factor, rect.height + 2 * expand_factor}
+}
+
+fit_and_center_text_in_rect :: proc(text: cstring, rect: rl.Rectangle, wanted_size: i32, color := rl.WHITE, min_size: i32 = 20, padding: f32 = 20.0) -> i32{
+    actual_size := wanted_size
+    for f32(rl.MeasureText(text, actual_size)) > rect.width - 2 * padding{
+        actual_size -= 1
+        assert(actual_size > min_size, "The text is too long for the rect")
+    }
+    center_text_in_rect(text, rect, actual_size, color)
+    return actual_size
+}
+
+center_text_in_rect :: proc(text: cstring, rect: rl.Rectangle, text_size: i32, color := rl.WHITE){
+    pos := get_center_of_text_in_rect(text, rect, text_size)
+    rl.DrawText(text, pos.x, pos.y, text_size, color)
+}
+
 //return the position the text should be in so it is centered in the given rect
-center_text_in_rect :: proc(text: cstring, rect: rl.Rectangle, text_size: i32) -> [2]i32{
+get_center_of_text_in_rect :: proc(text: cstring, rect: rl.Rectangle, text_size: i32) -> [2]i32{
     text_size := rl.Vector2{
         f32(rl.MeasureText(text, text_size)), 
         f32(text_size), //this feels wrong and problematic. But rl.GetFontDefault().baseSize is also not correct and this seems like close enough 

@@ -51,7 +51,14 @@ Board :: struct{
     placed_piece_on_incorrect_tile_index: int,
 
     mistakes_count: int,
+    mistakes_on_one_piece: int,
     finished_pgn: bool,
+    display_result_box: bool,
+
+    is_white: bool,
+
+    computer_moving_timer: Timer,
+    is_player_move: bool,
 }
 
 board_create :: proc(filename := "res/fen/default.fen") -> Board{
@@ -84,6 +91,8 @@ board_create :: proc(filename := "res/fen/default.fen") -> Board{
     board.move_forward_timer = timer_create(0.15, finished_at_the_start = true)
     board.move_backward_timer = timer_create(0.15, finished_at_the_start = true)
     board.placed_piece_on_incorrect_tile_timer = timer_create(0.3, finished_at_the_start = true)
+    board.computer_moving_timer = timer_create(0.3)
+
     return board
 }
 
@@ -92,20 +101,20 @@ board_update :: proc(board: ^Board, mouse: rl.Vector2, dt: f64) -> bool{
     if !board.finished_pgn && rl.IsKeyDown(.RIGHT) && board.moves_cursor < len(board.moves) && timer_is_finised(board.move_forward_timer){
         move := board.moves[board.moves_cursor]
         board.moves_cursor += 1
-        move_pieces_forward(&board.pieces, move)
+        move_pieces_forward(&board.pieces, move, board.is_white)
 
         timer_reset(&board.move_forward_timer)
     }
     if !board.finished_pgn && rl.IsKeyDown(.LEFT) && board.moves_cursor > 0 && timer_is_finised(board.move_backward_timer){
         board.moves_cursor -= 1
         last_move := board.moves[board.moves_cursor]
-        move_pieces_backward(&board.pieces, last_move)
+        move_pieces_backward(&board.pieces, last_move, board.is_white)
 
         timer_reset(&board.move_backward_timer)
     } 
 
     //mouse movement
-    if !board.finished_pgn && rl.IsMouseButtonDown(.LEFT) && board.held_piece_index == -1{
+    if !board.finished_pgn && rl.IsMouseButtonDown(.LEFT) && board.held_piece_index == -1 && board.is_player_move{
         if index := mouse_pos_to_board_index(board.tiles[:], board.tile_size, mouse); index != -1 && board.pieces[index].type != .None{
             board.held_piece = board.pieces[index]
             board.held_piece_index = index
@@ -120,21 +129,99 @@ board_update :: proc(board: ^Board, mouse: rl.Vector2, dt: f64) -> bool{
         if index == -1{
             board.pieces[board.held_piece_index] = board.held_piece
         }
-        else if board.moves[board.moves_cursor].to != index{
-            board.pieces[board.held_piece_index] = board.held_piece
+        else if castling_index := change_to_castling_index_if_possible(board^, index); castling_index == board.moves[board.moves_cursor].to{
+            perform_castles(&board.pieces, board.is_white, castling_index)
+            board.moves_cursor += 1
+            board.mistakes_on_one_piece = 0
+            board.is_player_move = false 
+        }
+        else if board.moves[board.moves_cursor].to != index || board.moves[board.moves_cursor].from != board.held_piece_index{ //placed piece incorrectly
+            if board.mistakes_on_one_piece == 0{
+                board.pieces[board.held_piece_index] = board.held_piece
 
-            board.placed_piece_on_incorrect_tile_index = index
-            timer_reset(&board.placed_piece_on_incorrect_tile_timer)
-            TILE_COLOR_MISTAKE_MODIFIABLE = TILE_COLOR_MISTAKE
+                board.placed_piece_on_incorrect_tile_index = index
+                timer_reset(&board.placed_piece_on_incorrect_tile_timer)
+                TILE_COLOR_MISTAKE_MODIFIABLE = TILE_COLOR_MISTAKE
 
-            board.mistakes_count += 1
+                board.mistakes_count += 1
+                board.mistakes_on_one_piece += 1
+            }
+            else{
+                to_index := board.moves[board.moves_cursor].to
+                from_index := board.moves[board.moves_cursor].from
+
+                if from_index == 64{
+                    perform_castles(&board.pieces, board.is_white, from_index)
+
+                    if board.held_piece_index != coordinate_to_index("h1", board.is_white) && board.held_piece_index != coordinate_to_index("e1", board.is_white){
+                        board.pieces[board.held_piece_index] = board.held_piece
+                    }
+                }
+                else if from_index == 65{
+                    perform_castles(&board.pieces, board.is_white, from_index)
+
+                    if board.held_piece_index != coordinate_to_index("h8", board.is_white) && board.held_piece_index != coordinate_to_index("e8", board.is_white){
+                        board.pieces[board.held_piece_index] = board.held_piece
+                    }
+
+                }
+                else if from_index == 66{
+                    perform_castles(&board.pieces, board.is_white, from_index)
+
+                    if board.held_piece_index != coordinate_to_index("a1", board.is_white) && board.held_piece_index != coordinate_to_index("e1", board.is_white){
+                        board.pieces[board.held_piece_index] = board.held_piece
+                    }
+
+                }
+                else if from_index == 67{
+                    perform_castles(&board.pieces, board.is_white, from_index)
+
+                    if board.held_piece_index != coordinate_to_index("a8", board.is_white) && board.held_piece_index != coordinate_to_index("e8", board.is_white){
+                        board.pieces[board.held_piece_index] = board.held_piece
+                    }
+
+                }
+                else{
+                    //if we are holding a correct piece but just placed it in incorrect index
+                    if board.pieces[from_index] == piece_none(){
+                        board.pieces[to_index] = board.held_piece 
+                    }
+                    else{ //if we're holding an incorrect piece
+                        board.pieces[board.held_piece_index] = board.held_piece
+
+                        board.pieces[to_index] = board.pieces[from_index]
+                        board.pieces[from_index] = piece_none()
+                    }
+                }
+
+
+                board.moves_cursor += 1
+                board.mistakes_count += 1
+                board.mistakes_on_one_piece = 0 
+                board.is_player_move = false 
+            }
         }
         else{
             board.pieces[index] = board.held_piece
             board.moves_cursor += 1
+            board.mistakes_on_one_piece = 0
+            board.is_player_move = false 
         }
 
         board.held_piece_index = -1
+    }
+
+    if !board.is_player_move{
+        timer_update(&board.computer_moving_timer, dt)
+    }
+
+    if timer_is_finised(board.computer_moving_timer){
+        timer_reset(&board.computer_moving_timer)
+        board.is_player_move = true
+
+        move := board.moves[board.moves_cursor]
+        board.moves_cursor += 1
+        move_pieces_forward(&board.pieces, move, board.is_white)
     }
 
     //timers
@@ -144,18 +231,23 @@ board_update :: proc(board: ^Board, mouse: rl.Vector2, dt: f64) -> bool{
     TILE_COLOR_MISTAKE_MODIFIABLE.a = u8(255 * (1.0 - timer_percentage_time_elapsed(board.placed_piece_on_incorrect_tile_timer)))
 
     //other
-    if board.moves_cursor >= len(board.moves){
+    if !board.finished_pgn && board.moves_cursor >= len(board.moves){
         board.finished_pgn = true
     }
 
-    if board.finished_pgn && rl.IsKeyPressed(.ENTER){
-
-        board.finished_pgn = false
+    if board.display_result_box && rl.IsKeyPressed(.ENTER){
         board.mistakes_count = 0
         board.moves_cursor = 0
         read_fen("res/fen/default.fen", &board.pieces)
+        board.display_result_box = false
+        board.finished_pgn = false
 
         return true
+
+    }
+
+    if board.finished_pgn && rl.IsKeyPressed(.ENTER){
+        board.display_result_box = true
     }
 
     return false
@@ -207,8 +299,13 @@ board_render :: proc(board: ^Board, mouse: rl.Vector2){
             {0.0, 0.0}, 0.0, rl.WHITE)
     }
 
-    //draw results panel
     if board.finished_pgn{
+        str: cstring = "FINISHED PGN"
+        rl.DrawText(str, (i32(game_size.x) - rl.MeasureText(str, 80)) / 2, 40, 80, rl.WHITE)
+    }
+
+    //draw results panel
+    if board.display_result_box{
         rl.DrawRectangleRec({0, 0, game_size.x, game_size.y}, {0, 0, 0, 50})
         result_panel := rl.Rectangle{game_size.x / 3, game_size.y / 10 * 2, game_size.x /3, game_size.y / 10 * 6}
         rl.DrawRectangleRec(result_panel, {192, 186, 187, 255})
@@ -221,6 +318,63 @@ board_render :: proc(board: ^Board, mouse: rl.Vector2){
         rl.DrawText(strings.clone_to_cstring(strings.to_string(b), context.temp_allocator), i32(game_size.x / 3 * 1.1), i32(game_size.y / 10 * 4), 45, rl.WHITE)
 
         rl.DrawText("[press enter to go to menu]", i32(game_size.x / 3 * 1.13), i32(game_size.y * 0.5), 30, rl.WHITE)
+    }
+
+    //@Debug
+    if board.is_player_move{
+        rl.DrawText("Player move", 10, 10, 60, rl.WHITE)
+    }
+    else{
+        rl.DrawText("Computer move", 10, 10, 60, rl.WHITE)
+    }
+}
+
+perform_castles :: proc(pieces: ^[64]Piece, is_white: bool, index: int){
+    switch index{
+        case 64:
+            pieces[coordinate_to_index("g1", is_white)] = {.King, true}
+            pieces[coordinate_to_index("f1", is_white)] = {.Rook, true}
+            pieces[coordinate_to_index("h1", is_white)] = piece_none()
+            pieces[coordinate_to_index("e1", is_white)] = piece_none()
+        case 65:
+            pieces[coordinate_to_index("g8", is_white)] = {.King, false}
+            pieces[coordinate_to_index("f8", is_white)] = {.Rook, false}
+            pieces[coordinate_to_index("h8", is_white)] = piece_none()
+            pieces[coordinate_to_index("e8", is_white)] = piece_none()
+        case 66: 
+            pieces[coordinate_to_index("c1", is_white)] = {.King, true}
+            pieces[coordinate_to_index("d1", is_white)] = {.Rook, true}
+            pieces[coordinate_to_index("a1", is_white)] = piece_none()
+            pieces[coordinate_to_index("e1", is_white)] = piece_none()
+        case 67: 
+            pieces[coordinate_to_index("c8", is_white)] = {.King, false}
+            pieces[coordinate_to_index("d8", is_white)] = {.Rook, false}
+            pieces[coordinate_to_index("a8", is_white)] = piece_none()
+            pieces[coordinate_to_index("e8", is_white)] = piece_none()
+    }
+
+}
+
+change_to_castling_index_if_possible :: proc(board: Board, index: int) -> int{
+    white_king := Piece{.King, true}
+    black_king := Piece{.King, false}
+
+    //we should also check if the rook is on h1 and if the king and rook ever moved but that should be taken care of by the pgn
+    //this function's job is only to generate correct indicies (64...67) if the user wants to castle
+    if board.held_piece == white_king && board.held_piece_index == coordinate_to_index("e1", board.is_white) && index == coordinate_to_index("h1", board.is_white){
+        return 64
+    }
+    else if board.held_piece == white_king && board.held_piece_index == coordinate_to_index("e1", board.is_white) && index == coordinate_to_index("a1", board.is_white){
+        return 66
+    }
+    else if board.held_piece == black_king && board.held_piece_index == coordinate_to_index("e8", board.is_white) && index == coordinate_to_index("h8", board.is_white){
+        return 65
+    }
+    else if board.held_piece == black_king && board.held_piece_index == coordinate_to_index("e8", board.is_white) && index == coordinate_to_index("a8", board.is_white){
+        return 67
+    }
+    else{
+        return -1
     }
 }
 
@@ -237,55 +391,34 @@ highlight_tile :: proc(board: Board, tile_index: int){
 
 highlight_tile_castles :: proc(board: Board, tile_index: int){
     if tile_index == 64{
-        highlight_tile(board, coordinate_to_index("e1")) 
-        highlight_tile(board, coordinate_to_index("g1")) 
+        highlight_tile(board, coordinate_to_index("e1", board.is_white)) 
+        highlight_tile(board, coordinate_to_index("g1", board.is_white)) 
     }
     else if tile_index == 65{
-        highlight_tile(board, coordinate_to_index("e8")) 
-        highlight_tile(board, coordinate_to_index("g8")) 
+        highlight_tile(board, coordinate_to_index("e8", board.is_white)) 
+        highlight_tile(board, coordinate_to_index("g8", board.is_white)) 
     }
     else if tile_index == 66{
-        highlight_tile(board, coordinate_to_index("e1")) 
-        highlight_tile(board, coordinate_to_index("c1")) 
+        highlight_tile(board, coordinate_to_index("e1", board.is_white)) 
+        highlight_tile(board, coordinate_to_index("c1", board.is_white)) 
     }
     else if tile_index == 67{
-        highlight_tile(board, coordinate_to_index("e8")) 
-        highlight_tile(board, coordinate_to_index("c8")) 
+        highlight_tile(board, coordinate_to_index("e8", board.is_white)) 
+        highlight_tile(board, coordinate_to_index("c8", board.is_white)) 
     }
     else{
         assert(false, "Incorrect use of the function")
     }
 }
 
-move_pieces_forward :: proc(pieces: ^[64]Piece, move: Move){
+move_pieces_forward :: proc(pieces: ^[64]Piece, move: Move, is_white: bool){
     //castles indicies:
     //64 - white short
     //65 - black short
     //66 - white long
     //67 - black long
-    if move.from == 64 && move.to == 64{
-        pieces[coordinate_to_index("e1")] = piece_none() 
-        pieces[coordinate_to_index("h1")] = piece_none() 
-        pieces[coordinate_to_index("f1")] = Piece{.Rook, true}
-        pieces[coordinate_to_index("g1")] = Piece{.King, true}
-    }
-    else if move.from == 65 && move.to == 65{
-        pieces[coordinate_to_index("e8")] = piece_none() 
-        pieces[coordinate_to_index("h8")] = piece_none() 
-        pieces[coordinate_to_index("f8")] = Piece{.Rook, false}
-        pieces[coordinate_to_index("g8")] = Piece{.King, false}
-    }
-    else if move.from == 66 && move.to == 66{
-        pieces[coordinate_to_index("e1")] = piece_none() 
-        pieces[coordinate_to_index("a1")] = piece_none() 
-        pieces[coordinate_to_index("d1")] = Piece{.Rook, true}
-        pieces[coordinate_to_index("c1")] = Piece{.King, true}
-    }
-    else if move.from == 67 && move.to == 67{
-        pieces[coordinate_to_index("e8")] = piece_none() 
-        pieces[coordinate_to_index("a8")] = piece_none() 
-        pieces[coordinate_to_index("d8")] = Piece{.Rook, false}
-        pieces[coordinate_to_index("c8")] = Piece{.King, false}
+    if move.from > 63{
+        perform_castles(pieces, is_white, move.from)
     }
     else{
         tmp := pieces[move.from] 
@@ -298,38 +431,48 @@ move_pieces_forward :: proc(pieces: ^[64]Piece, move: Move){
         }
 
         if move.en_passant && tmp.is_white{
-            pieces[move.to + 8] = piece_none()
+            if is_white{
+                pieces[move.to + 8] = piece_none()
+            }
+            else{
+                pieces[move.to - 8] = piece_none()
+            }
         }
         if move.en_passant && !tmp.is_white{
-            pieces[move.to - 8] = piece_none()
+            if is_white{
+                pieces[move.to - 8] = piece_none()
+            }
+            else{
+                pieces[move.to + 8] = piece_none()
+            }
         }
     }
 }
 
-move_pieces_backward :: proc(pieces: ^[64]Piece, move: Move){
+move_pieces_backward :: proc(pieces: ^[64]Piece, move: Move, is_white: bool){
     if move.from == 64{
-        pieces[coordinate_to_index("e1")] = Piece{.King, true}
-        pieces[coordinate_to_index("h1")] = Piece{.Rook, true}
-        pieces[coordinate_to_index("f1")] = piece_none() 
-        pieces[coordinate_to_index("g1")] = piece_none() 
+        pieces[coordinate_to_index("e1", is_white)] = Piece{.King, true}
+        pieces[coordinate_to_index("h1", is_white)] = Piece{.Rook, true}
+        pieces[coordinate_to_index("f1", is_white)] = piece_none() 
+        pieces[coordinate_to_index("g1", is_white)] = piece_none() 
     }
     else if move.from == 65{
-        pieces[coordinate_to_index("e8")] = Piece{.King, false}
-        pieces[coordinate_to_index("h8")] = Piece{.Rook, false}
-        pieces[coordinate_to_index("f8")] = piece_none() 
-        pieces[coordinate_to_index("g8")] = piece_none() 
+        pieces[coordinate_to_index("e8", is_white)] = Piece{.King, false}
+        pieces[coordinate_to_index("h8", is_white)] = Piece{.Rook, false}
+        pieces[coordinate_to_index("f8", is_white)] = piece_none() 
+        pieces[coordinate_to_index("g8", is_white)] = piece_none() 
     }
     else if move.from == 66{
-        pieces[coordinate_to_index("e1")] = Piece{.King, true}
-        pieces[coordinate_to_index("a1")] = Piece{.Rook, true}
-        pieces[coordinate_to_index("c1")] = piece_none() 
-        pieces[coordinate_to_index("d1")] = piece_none() 
+        pieces[coordinate_to_index("e1", is_white)] = Piece{.King, true}
+        pieces[coordinate_to_index("a1", is_white)] = Piece{.Rook, true}
+        pieces[coordinate_to_index("c1", is_white)] = piece_none() 
+        pieces[coordinate_to_index("d1", is_white)] = piece_none() 
     }
     else if move.from == 67{
-        pieces[coordinate_to_index("e8")] = Piece{.King, false}
-        pieces[coordinate_to_index("a8")] = Piece{.Rook, false}
-        pieces[coordinate_to_index("c8")] = piece_none() 
-        pieces[coordinate_to_index("d8")] = piece_none() 
+        pieces[coordinate_to_index("e8", is_white)] = Piece{.King, false}
+        pieces[coordinate_to_index("a8", is_white)] = Piece{.Rook, false}
+        pieces[coordinate_to_index("c8", is_white)] = piece_none() 
+        pieces[coordinate_to_index("d8", is_white)] = piece_none() 
     }
     else{
         tmp := pieces[move.to]
@@ -342,10 +485,20 @@ move_pieces_backward :: proc(pieces: ^[64]Piece, move: Move){
         }
 
         if move.en_passant && tmp.is_white{
-            pieces[move.to + 8] = Piece{.Pawn, false} 
+            if is_white{
+                pieces[move.to + 8] = Piece{.Pawn, false} 
+            }
+            else{
+                pieces[move.to - 8] = Piece{.Pawn, false} 
+            }
         }
         if move.en_passant && !tmp.is_white{
-            pieces[move.to - 8] = Piece{.Pawn, true} 
+            if is_white{
+                pieces[move.to - 8] = Piece{.Pawn, true} 
+            }
+            else{
+                pieces[move.to + 8] = Piece{.Pawn, true} 
+            }
         }
     }
 }
@@ -359,17 +512,24 @@ mouse_pos_to_board_index :: proc(tiles: []Tile, tile_size: f32, mouse: rl.Vector
     return -1
 }
 
-coordinate_to_index :: proc(coordinate: string) -> int{
+coordinate_to_index :: proc(coordinate: string, is_white := true) -> int{
     if len(coordinate) != 2 || !(coordinate[0] >= 'a' && coordinate[0] <= 'h') || !(coordinate[1] >= '1' && coordinate[1] <= '8'){
         assert(false, "[Error in coordinate to index] Got wrong coordinate")
         return -1;
     }
     num := int(u8(coordinate[1]) - 48);
     file := int(u8(coordinate[0]) - 97);
-    return 8 * (8 - num) + file;
+    if !is_white{
+        return 63 - (8 * (8 - num) + file)
+    }
+    return 8 * (8 - num) + file
 }
 
-index_to_coordinate :: proc(index: int) -> string {
+index_to_coordinate :: proc(index: int, is_white := true) -> string {
+    index := index
+    if !is_white{
+        index = 63 - index
+    }
     switch index {
     case 0:  return "a8"
     case 1:  return "b8"

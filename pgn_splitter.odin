@@ -332,10 +332,19 @@ remove_defects_from_builder :: proc(b: ^strings.Builder, allocator := context.al
     }
 }
 
-write_nested_pgn :: proc(browser: ^Browser){
+write_nested_pgn :: proc(browser: ^Browser) -> int{
     str := browser.pgn_creation_window.textbox_string_raw
-    filename := strings.to_string(browser.pgn_creation_window.filename_builder)
-    last_square_bracket_idx, desired_depth_levels, name_postfixes := nested_pgn_prepass(str, "caro-kann", context.temp_allocator)
+    pgns_count := 0
+
+    filename := strings.clone(strings.to_string(browser.pgn_creation_window.filename_builder), context.temp_allocator)
+    strings.builder_reset(&browser.pgn_creation_window.filename_builder)
+    strings.write_string(&browser.pgn_creation_window.filename_builder, "res/pgn/")
+    strings.write_string(&browser.pgn_creation_window.filename_builder, filename)
+    err := os.make_directory(strings.to_string(browser.pgn_creation_window.filename_builder))
+    assert(err == nil)
+
+    last_square_bracket_idx, desired_depth_levels, name_postfixes := nested_pgn_prepass(str, filename, context.temp_allocator)
+
     name_postfixes_idx := 0
 
     b := strings.builder_make(context.temp_allocator)
@@ -359,7 +368,14 @@ write_nested_pgn :: proc(browser: ^Browser){
         }
 
         remove_defects_from_builder(&b, context.temp_allocator)
-        err := os.write_entire_file_from_string(name_postfixes[name_postfixes_idx], strings.to_string(b))
+
+        strings.builder_reset(&browser.pgn_creation_window.filename_builder)
+        strings.write_string(&browser.pgn_creation_window.filename_builder, "res/pgn/")
+        strings.write_string(&browser.pgn_creation_window.filename_builder, filename)
+        strings.write_rune(&browser.pgn_creation_window.filename_builder, '/')
+        strings.write_string(&browser.pgn_creation_window.filename_builder, name_postfixes[name_postfixes_idx])
+        err := os.write_entire_file_from_string(strings.to_string(browser.pgn_creation_window.filename_builder), strings.to_string(b))
+        pgns_count += 1
         name_postfixes_idx += 1
         assert(err == nil)
         strings.builder_reset(&b)
@@ -428,11 +444,23 @@ write_nested_pgn :: proc(browser: ^Browser){
             }
 
             remove_defects_from_builder(&b, context.temp_allocator)
-            err := os.write_entire_file_from_string(name_postfixes[name_postfixes_idx], strings.to_string(b))
+
+            strings.builder_reset(&browser.pgn_creation_window.filename_builder)
+            strings.write_string(&browser.pgn_creation_window.filename_builder, "res/pgn/")
+            strings.write_string(&browser.pgn_creation_window.filename_builder, filename)
+            strings.write_rune(&browser.pgn_creation_window.filename_builder, '/')
+            strings.write_string(&browser.pgn_creation_window.filename_builder, name_postfixes[name_postfixes_idx])
+            err := os.write_entire_file_from_string(strings.to_string(browser.pgn_creation_window.filename_builder), strings.to_string(b))
+
+            pgns_count += 1
             name_postfixes_idx += 1
             assert(err == nil)
             strings.builder_reset(&b)
             strings.write_string(&b, str[:last_square_bracket_idx])
         }
     }
+
+    strings.builder_reset(&browser.pgn_creation_window.filename_builder)
+    strings.write_string(&browser.pgn_creation_window.filename_builder, filename)
+    return pgns_count
 }

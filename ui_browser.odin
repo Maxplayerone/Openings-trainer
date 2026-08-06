@@ -73,6 +73,9 @@ Browser :: struct{
     create_pgn_button: Button,
 
     pgn_creation_window: PgnCreationWindow,
+
+    is_nested_pgn_infobox_open: bool,
+    nested_pgn_infobox_builder: strings.Builder,
 }
 
 load_nodes :: proc(browser: ^Browser) -> bool{
@@ -189,6 +192,8 @@ browser_create :: proc() -> (Browser, bool){
     browser.pgn_creation_window.create_hovered_color = rl.DARKGRAY
     browser.pgn_creation_window.create_cur_color = browser.pgn_creation_window.create_normal_color
 
+    browser.nested_pgn_infobox_builder = strings.builder_make(context.allocator)
+
     return browser, true
 }
 
@@ -213,7 +218,13 @@ browser_update :: proc(browser: ^Browser, virtual_mouse: rl.Vector2, dt: f64) ->
           rl.IsKeyPressed(.ENTER) && !browser.pgn_creation_window.filename_box_is_focused{
 
             if check_if_nested_pgn(browser){
-                write_nested_pgn(browser)
+                pgns_count := write_nested_pgn(browser)
+
+                strings.builder_reset(&browser.nested_pgn_infobox_builder)
+                strings.write_string(&browser.nested_pgn_infobox_builder, "Containing ")
+                strings.write_int(&browser.nested_pgn_infobox_builder, pgns_count)
+                strings.write_string(&browser.nested_pgn_infobox_builder, "  pgns")
+                browser.is_nested_pgn_infobox_open = true
             }
             else{
                 write_pgn(browser)
@@ -325,6 +336,11 @@ browser_update :: proc(browser: ^Browser, virtual_mouse: rl.Vector2, dt: f64) ->
 
                 }
             }
+        }
+    }
+    else if browser.is_nested_pgn_infobox_open{
+        if rl.IsKeyPressed(.ENTER){
+            browser.is_nested_pgn_infobox_open = false
         }
     }
     else{
@@ -507,7 +523,7 @@ browser_render :: proc(browser: ^Browser){
             filename_text, _ = strings.clone_to_cstring(strings.to_string(window.filename_builder), context.allocator)
             generating_filename_text = true
         }
-        pos := center_text_in_rect(filename_text, window.filename_box, window.filename_text_size)
+        pos := get_center_of_text_in_rect(filename_text, window.filename_box, window.filename_text_size)
         rl.DrawText(filename_text, pos.x, pos.y, window.filename_text_size, rl.LIGHTGRAY) 
         if generating_filename_text{
             defer delete(filename_text)
@@ -545,8 +561,27 @@ browser_render :: proc(browser: ^Browser){
 
         //-----create_rect
         rl.DrawRectangleRec(window.create_rect, window.create_cur_color)
-        text_pos:= center_text_in_rect("CREATE", window.create_rect, 60)
+        text_pos:= get_center_of_text_in_rect("CREATE", window.create_rect, 60)
         rl.DrawText("CREATE", text_pos.x, text_pos.y, 60, rl.WHITE)
+    }
+
+    if browser.is_nested_pgn_infobox_open{
+        rl.DrawRectangleRec({0, 0, game_size.x, game_size.y}, rl.Color{255, 255, 255, 50})
+        info_box := rl.Rectangle{game_size.x * 0.3, game_size.y * 0.1, game_size.x * 0.4, game_size.y * 0.8}
+
+        rl.DrawRectangleRec(rect_expand(info_box, 10.0), rl.WHITE)
+        rl.DrawRectangleRec(info_box, rl.BROWN)
+
+        fit_and_center_text_in_rect("The file", {info_box.x, info_box.y, info_box.width, info_box.height * 0.1}, 60)
+        fit_and_center_text_in_rect(strings.to_cstring(&browser.pgn_creation_window.filename_builder), {info_box.x, info_box.y + info_box.height * 0.1, info_box.width, info_box.height * 0.1}, 60)
+        fit_and_center_text_in_rect("Contains multiple pgns.", {info_box.x, info_box.y + info_box.height * 0.2, info_box.width, info_box.height * 0.1}, 60)
+        fit_and_center_text_in_rect("It's now a folder", {info_box.x, info_box.y + info_box.height * 0.3, info_box.width, info_box.height * 0.1}, 60)
+        fit_and_center_text_in_rect("Containing 10 singular pgns", {info_box.x, info_box.y + info_box.height * 0.4, info_box.width, info_box.height * 0.1}, 60)
+
+        confirm_rect := rl.Rectangle{game_size.x * 0.4, game_size.y * 0.8, game_size.x * 0.2, game_size.y * 0.08}
+        rl.DrawRectangleRec(rect_expand(confirm_rect, 10), rl.WHITE)
+        rl.DrawRectangleRec(confirm_rect, rl.DARKBROWN)
+        fit_and_center_text_in_rect("CONFIRM", confirm_rect, 100, color = rl.LIGHTGRAY)
     }
 }
 

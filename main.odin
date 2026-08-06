@@ -13,7 +13,7 @@ GameState :: enum{
     Board,
 }
 
-game_state: GameState = .Board
+game_state: GameState = .Browser
 
 main :: proc(){
     //setup
@@ -68,13 +68,38 @@ main :: proc(){
                     b := strings.builder_make()
                     defer strings.builder_destroy(&b)
                     strings.write_string(&b, "res/pgn/")
-                    strings.write_string(&b, browser.nodes[browser_response].name)
+                    switch browser.nodes[browser_response].type{
+                        case .Directory:
+                        case .SingleNode:
+                            strings.write_string(&b, browser.nodes[browser_response].name)
+                        case .DirectoryChild:
+                            //find parent
+                            for i := browser_response - 1; i > -1; i -= 1{
+                                if browser.nodes[i].type == .Directory{
+                                    strings.write_string(&b, browser.nodes[i].name)
+                                    strings.write_rune(&b, '/')
+                                    strings.write_string(&b, browser.nodes[browser_response].name)
+                                }
+                            }
+                    }
 
-                    moves, success := read_pgn(strings.to_string(b), board.pieces[:])
+                    moves, picked_white, success := read_pgn(strings.to_string(b), board.pieces[:])
                     if !success{
                         assert(false)
                     }
                     board.moves = moves
+                    board.is_white = picked_white
+                    board.is_player_move = picked_white
+
+                    if !picked_white{
+                        read_fen("res/fen/default_black.fen", &board.pieces)
+                        for i in 0..<len(board.moves){
+                            if board.moves[i].from < 64{
+                                board.moves[i].from = 63 - board.moves[i].from
+                                board.moves[i].to = 63 - board.moves[i].to
+                            }
+                        }
+                    }
                 }
             case .Board:
                 if board_update(&board, virtual_mouse, dt){
@@ -101,6 +126,7 @@ main :: proc(){
     rl.UnloadRenderTexture(target)
     rl.CloseWindow()
 
+    //(NOTE): for the next project think more about putting dynamic memory in arenas and freeing the whole arena at once
     delete(board.moves)
 
     strings.builder_destroy(&browser.pgn_creation_window.filename_builder)
@@ -114,6 +140,7 @@ main :: proc(){
         delete(node.name)
     }
     delete(browser.nodes)
+    strings.builder_destroy(&browser.nested_pgn_infobox_builder)
 
 	for key, value in tracking_allocator.allocation_map {
 		fmt.printf("%v: Leaked %v bytes\n", value.location, value.size)
